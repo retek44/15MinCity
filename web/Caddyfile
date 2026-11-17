@@ -17,6 +17,10 @@
 	}
 
 	handle_path /tiles/* {
+		# Tiles change only with a data release (weekly): let the browser keep them instead of
+		# refetching every tile on each visit and zoom-back. The catalog stays fresh.
+		@tiles path_regexp ^/(h3|basemap)/
+		header @tiles Cache-Control "public, max-age=3600, stale-while-revalidate=86400"
 		reverse_proxy {$TILES_UPSTREAM:martin:3000}
 	}
 

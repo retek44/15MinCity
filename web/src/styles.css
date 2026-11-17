@@ -401,7 +401,7 @@ button {
 .weights summary svg {
   width: 16px;
   height: 16px;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .weights[open] summary svg {
@@ -899,7 +899,7 @@ button {
   background: transparent;
   color: var(--ink);
   text-align: left;
-  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.12s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .meter:hover {
@@ -1025,7 +1025,7 @@ button {
   margin: 10px 0;
   background: var(--rule);
   border-radius: 1px;
-  animation: pulse 1.2s ease-in-out infinite alternate;
+  animation: pulse 0.7s ease-in-out infinite alternate;
 }
 
 @keyframes pulse {

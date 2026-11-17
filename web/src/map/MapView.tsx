@@ -110,22 +110,25 @@ function addOverlay(map: MlMap, props: Props) {
     before,
   );
   // The hexagon is the system's construction shape: outlined under the cursor and the selection.
-  for (const id of ["r15-h3-hover", "r15-h3-selected"]) {
-    map.addLayer(
-      {
-        id,
-        type: "line",
-        source: "r15-h3",
-        "source-layer": "h3",
-        filter: ["==", ["get", "h3"], ""],
-        paint: {
-          "line-color": id === "r15-h3-selected" ? INK.saffron : INK.ink[t],
-          "line-width": id === "r15-h3-selected" ? 3 : 1.5,
-        },
+  // Driven by feature state, not filters: a filter change re-lays out every tile of the layer
+  // (the outline lagged behind a fast cursor), a feature-state change only repaints.
+  const hovered: ExpressionSpecification = ["boolean", ["feature-state", "hover"], false];
+  const selected: ExpressionSpecification = ["boolean", ["feature-state", "selected"], false];
+  map.addLayer(
+    {
+      id: "r15-h3-outline",
+      type: "line",
+      source: "r15-h3",
+      "source-layer": "h3",
+      paint: {
+        "line-color": ["case", selected, INK.saffron, INK.ink[t]],
+        "line-width": ["case", selected, 3, 1.5],
+        "line-opacity": ["case", ["any", selected, hovered], 1, 0],
+        "line-opacity-transition": { duration: 0 },
       },
-      before,
-    );
-  }
+    },
+    before,
+  );
   // Overprint: the 5/10/15-minute reach as three nested flat ink planes.
   map.addLayer(
     {
@@ -208,9 +211,16 @@ function applyData(map: MlMap, { isochrones, pois, point, commonArea }: Pick<Pro
 
 const wide = () => window.innerWidth > 720;
 
+/** Camera moves: quick enough to feel direct, long enough to keep the sense of place. */
+const MOVE_MS = 550;
+
 export function MapView(props: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
+  /** Hexagon outlined as the selection (feature id = H3 index). */
+  const selectedId = useRef<string | undefined>(undefined);
+  /** Re-applies the selection outline; a new style (theme, language) drops feature state. */
+  const reselect = useRef<() => void>(() => {});
   const propsRef = useRef(props);
   useEffect(() => {
     propsRef.current = props;
@@ -230,11 +240,15 @@ export function MapView(props: Props) {
       ],
       // The data credit lives in the map's bottom band (Legend), set in the app's type.
       attributionControl: false,
+      // Labels and tiles appear without the default 300 ms fade.
+      fadeDuration: 80,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.addControl(new maplibregl.GeolocateControl({}), "bottom-right");
     map.on("style.load", () => {
       addOverlay(map, propsRef.current);
+      selectedId.current = undefined;
+      reselect.current();
       applyData(map, propsRef.current);
     });
     map.on("click", (e) => {
@@ -242,21 +256,46 @@ export function MapView(props: Props) {
     });
 
     const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: "hex-popup", offset: 10 });
-    map.on("mousemove", "r15-h3", (e) => {
-      const feature = e.features?.[0];
-      if (!feature) return;
+    // At most one hover update per frame, however fast the pointer moves.
+    // MapLibre deletes e.features once the handler returns, so keep the feature itself.
+    let pending: { feature: maplibregl.MapGeoJSONFeature; lngLat: maplibregl.LngLat } | undefined;
+    let frame = 0;
+    let hoverId: string | undefined;
+    const setHover = (id: string | undefined) => {
+      if (id === hoverId) return;
+      if (hoverId !== undefined) map.setFeatureState({ source: "r15-h3", sourceLayer: "h3", id: hoverId }, { hover: false });
+      if (id !== undefined) map.setFeatureState({ source: "r15-h3", sourceLayer: "h3", id }, { hover: true });
+      hoverId = id;
+    };
+    const hover = () => {
+      frame = 0;
+      if (!pending) return;
+      const { feature, lngLat } = pending;
       const { mode, weights, scoreLabel } = propsRef.current;
       const times = Object.fromEntries(
         Object.keys(weights).map((c) => [c, feature.properties[`${mode}_${c}`] as number | undefined]),
       );
+      setHover(feature.id === undefined ? undefined : String(feature.id));
+      popup.setLngLat(lngLat).setText(`${scoreLabel}: ${Math.round(score(times, weights))}`).addTo(map);
+    };
+    map.on("mousemove", "r15-h3", (e) => {
+      const feature = e.features?.[0];
+      if (!feature) return;
+      pending = { feature, lngLat: e.lngLat };
       map.getCanvas().style.cursor = "crosshair";
-      map.setFilter("r15-h3-hover", ["==", ["get", "h3"], String(feature.properties.h3 ?? "")]);
-      popup.setLngLat(e.lngLat).setText(`${scoreLabel}: ${Math.round(score(times, weights))}`).addTo(map);
+      if (!frame) frame = requestAnimationFrame(hover);
     });
     map.on("mouseleave", "r15-h3", () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      pending = undefined;
       map.getCanvas().style.cursor = "";
-      map.setFilter("r15-h3-hover", ["==", ["get", "h3"], ""]);
+      setHover(undefined);
       popup.remove();
+    });
+    // A new style drops feature state; forget the hovered cell with it.
+    map.on("style.load", () => {
+      hoverId = undefined;
     });
 
     mapRef.current = map;
@@ -321,29 +360,60 @@ export function MapView(props: Props) {
     if (!coords.length) return;
     const lons = coords.map((c) => c[0]!);
     const lats = coords.map((c) => c[1]!);
-    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 64, maxZoom: 15 });
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], {
+      padding: 64,
+      maxZoom: 15,
+      duration: MOVE_MS,
+    });
   }, [commonArea]);
 
   // Fly to points chosen from search results; keep the place panel from covering the point;
-  // outline the hexagon the point falls in once the tiles under it are rendered.
+  // outline the hexagon the point falls in as soon as the tile under it is rendered.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     map.setPadding({ left: 0, top: 0, bottom: 0, right: point && wide() ? 392 : 0 });
-    const outline = () => {
-      if (!map.getLayer("r15-h3-selected")) return;
+    /** final: accept "no hexagon here" (the map is idle, so the tile is not just loading). */
+    const outline = (final = false): boolean => {
+      if (!map.getLayer("r15-h3-outline")) return false;
       const hit = point ? map.queryRenderedFeatures(map.project([point.lon, point.lat]), { layers: ["r15-h3"] })[0] : undefined;
-      map.setFilter("r15-h3-selected", ["==", ["get", "h3"], String(hit?.properties.h3 ?? "")]);
+      if (point && !hit && !final) return false; // tile not rendered yet
+      const id = hit?.id === undefined ? undefined : String(hit.id);
+      if (selectedId.current !== undefined && map.getSource("r15-h3")) {
+        map.setFeatureState({ source: "r15-h3", sourceLayer: "h3", id: selectedId.current }, { selected: false });
+      }
+      if (id !== undefined) map.setFeatureState({ source: "r15-h3", sourceLayer: "h3", id }, { selected: true });
+      selectedId.current = id;
       const district = Number(hit?.properties.district_id);
       propsRef.current.onCell?.(hit ? { h3: String(hit.properties.h3), districtId: Number.isFinite(district) && district > 0 ? district : null } : undefined);
+      return true;
     };
-    if (point && (point.fly || !map.getBounds().contains([point.lon, point.lat]))) {
-      map.flyTo({ center: [point.lon, point.lat], zoom: Math.max(map.getZoom(), 14) });
+    const retry = () => {
+      if (outline()) stop();
+    };
+    const settle = () => {
+      outline(true);
+      stop();
+    };
+    const stop = () => {
+      map.off("render", retry);
+      map.off("idle", settle);
+    };
+    const watch = () => {
+      stop();
+      map.on("render", retry);
+      map.on("idle", settle);
+    };
+    reselect.current = () => {
+      if (!outline()) watch();
+    };
+    const moving = point && (point.fly || !map.getBounds().contains([point.lon, point.lat]));
+    if (moving) {
+      map.flyTo({ center: [point.lon, point.lat], zoom: Math.max(map.getZoom(), 14), duration: MOVE_MS, essential: true });
     }
-    map.once("idle", outline);
-    return () => {
-      map.off("idle", outline);
-    };
+    // Clicks are already in view: outline now if the tile is there, else as soon as it renders.
+    if (moving || !outline()) watch();
+    return stop;
   }, [point]);
 
   // Frame a focused district.
@@ -351,7 +421,7 @@ export function MapView(props: Props) {
     const map = mapRef.current;
     if (!map || !focusDistrict || focusDistrict.bbox.length !== 4) return;
     const [w, s, e, n] = focusDistrict.bbox as [number, number, number, number];
-    map.fitBounds([[w, s], [e, n]], { padding: 48, maxZoom: 14.5 });
+    map.fitBounds([[w, s], [e, n]], { padding: 48, maxZoom: 14.5, duration: MOVE_MS });
   }, [focusDistrict]);
 
   return <div ref={container} className="map" role="region" aria-label="Map" data-testid="map" />;

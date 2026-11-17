@@ -272,6 +272,9 @@ export function App() {
       </aside>
 
       <main className={point ? "stage has-place" : "stage"}>
+        {/* Wait for the tile catalog (a few ms) so the map starts with its final style instead
+            of loading a plain one and swapping it, which reloaded every tile on start-up. */}
+        {basemap.isFetched ? (
         <MapView
           mode={heat}
           weights={heatWeights}
@@ -288,6 +291,9 @@ export function App() {
           onSelect={(p) => setPoint(p)}
           onCell={(cell) => setCellDistrictId(cell?.districtId ?? null)}
         />
+        ) : (
+          <div className="map" role="region" aria-label="Map" data-testid="map" />
+        )}
         <Legend
           title={
             focusCategory

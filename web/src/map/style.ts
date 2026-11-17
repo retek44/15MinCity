@@ -12,6 +12,9 @@ export function firstSymbolLayer(style: StyleSpecification): string | undefined 
   return style.layers.find((l) => l.type === "symbol")?.id;
 }
 
+/** Re-weighting recolours the city at once; MapLibre's default paint fade is 300 ms. */
+const PAINT_TRANSITION = { duration: 120, delay: 0 };
+
 /** Paper and ink of the app, re-inked onto the Protomaps flavours so the basemap joins the world. */
 export const MAP_PAPER = { light: "#eef0f6", dark: "#0e1220" } as const;
 
@@ -106,6 +109,7 @@ export function baseStyle(options: { basemap: boolean; dark: boolean; lang: stri
   if (!options.basemap) {
     return {
       version: 8,
+      transition: PAINT_TRANSITION,
       sources: {},
       layers: [{ id: "background", type: "background", paint: { "background-color": options.dark ? MAP_PAPER.dark : MAP_PAPER.light } }],
     };
@@ -113,6 +117,7 @@ export function baseStyle(options: { basemap: boolean; dark: boolean; lang: stri
   const flavor = options.dark ? "dark" : "light";
   return {
     version: 8,
+    transition: PAINT_TRANSITION,
     glyphs: `${ASSETS}/fonts/{fontstack}/{range}.pbf`,
     sprite: `${ASSETS}/sprites/v4/${flavor}`,
     sources: {
@@ -132,7 +137,11 @@ export const H3_SOURCE = {
   type: "vector" as const,
   tiles: [] as string[],
   minzoom: 9,
-  maxzoom: 16,
+  // Resolution-9 hexagons (~175 m) are exact at z14; deeper zooms reuse (overzoom) those tiles
+  // instead of fetching new ones.
+  maxzoom: 14,
+  // Hexagon ids address feature state (hover, selection) without re-filtering the layer.
+  promoteId: "h3",
   bounds: BUDAPEST_BOUNDS,
   attribution: "Reach15",
 };
