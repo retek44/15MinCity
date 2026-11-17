@@ -55,7 +55,7 @@ await page.getByTestId("transit-note").waitFor();
 await idle();
 await pause(1500);
 // Zoom out: by tram and metro the 15-minute reach runs along the lines.
-await page.evaluate(() => window.__reach15.map.easeTo({ zoom: 12.6, duration: 1200 }));
+await page.evaluate(() => window.__reach15.map.easeTo({ zoom: 12.6, duration: 550 }));
 await idle();
 await pause(3000);
 

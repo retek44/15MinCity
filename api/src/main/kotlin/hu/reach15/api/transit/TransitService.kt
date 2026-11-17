@@ -2,6 +2,8 @@ package hu.reach15.api.transit
 
 import com.github.benmanes.caffeine.cache.Caffeine
 import org.slf4j.LoggerFactory
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.EventListener
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.jdbc.core.RowCallbackHandler
 import org.springframework.jdbc.core.simple.JdbcClient
@@ -46,6 +48,21 @@ class TransitService(private val jdbc: JdbcClient) {
         Caffeine.newBuilder().maximumSize(3).expireAfterWrite(java.time.Duration.ofHours(6)).build<LocalDate, Timetable>()
 
     fun timetable(date: LocalDate): Timetable = timetables.get(date, ::load)
+
+    /**
+     * Loads today's and tomorrow's timetables in the background once the API is up, so the first
+     * public transport request after a deploy does not pay the ~3 s load. Requests that arrive
+     * meanwhile wait for the same load (Caffeine computes each key once).
+     */
+    @EventListener(ApplicationReadyEvent::class)
+    fun preload() {
+        Thread.ofVirtual().name("timetable-preload").start {
+            val today = now().toLocalDate()
+            for (date in listOf(today, today.plusDays(1))) {
+                runCatching { timetable(date) }.onFailure { log.warn("timetable preload for {} failed: {}", date, it.message) }
+            }
+        }
+    }
 
     @Cacheable("transitSeeds")
     fun seeds(lon: Double, lat: Double, at: LocalDateTime, budgetSeconds: Int): TransitSeeds {
