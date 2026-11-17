@@ -5,6 +5,7 @@ import hu.reach15.api.domain.LonLat
 import hu.reach15.api.domain.Mode
 import io.swagger.v3.oas.annotations.media.Schema
 import tools.jackson.databind.JsonNode
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 
 data class SearchResult(
@@ -36,7 +37,13 @@ data class Feature(
     val type = "Feature"
 }
 
-data class Poi(val name: String?, val lon: Double, val lat: Double)
+data class Poi(
+    val name: String?,
+    val lon: Double,
+    val lat: Double,
+    @get:Schema(description = "OSM opening_hours tag as mapped, if any")
+    val openingHours: String? = null,
+)
 
 data class CategoryAccess(
     val category: Category,
@@ -46,6 +53,8 @@ data class CategoryAccess(
     val score: Double,
     val weight: Double,
     val poi: Poi?,
+    @get:Schema(description = "Whether the place is open at the requested time; null when no time was given or its hours are unknown")
+    val open: Boolean? = null,
 )
 
 data class AccessResponse(
@@ -55,6 +64,44 @@ data class AccessResponse(
     @get:Schema(description = "Weighted accessibility score, 0..100")
     val score: Double,
     val categories: List<CategoryAccess>,
+    @get:Schema(description = "Local time (Europe/Budapest) whose opening hours were applied; null when none was requested")
+    val at: LocalDateTime? = null,
+    val transit: TransitSummary? = null,
+)
+
+data class TransitSummary(
+    val departure: LocalDateTime,
+    @get:Schema(description = "Stops reached within the time budget, on foot or by public transport")
+    val stopsReached: Int,
+    @get:Schema(description = "Trips running on the service day; 0 means no timetable for that day")
+    val tripsRunning: Int,
+)
+
+data class Anchor(
+    val lon: Double,
+    val lat: Double,
+    val mode: Mode,
+    val minutes: Int,
+)
+
+data class Spot(
+    val lon: Double,
+    val lat: Double,
+    @get:Schema(description = "Accessibility score of the spot's hexagon for the requested profile, 0..100")
+    val score: Double,
+    @get:Schema(description = "Travel time to each place, in the order of the request, seconds")
+    val seconds: List<Double>,
+    val address: ReverseResult?,
+)
+
+data class CommonGroundResponse(
+    val anchors: List<Anchor>,
+    @get:Schema(description = "GeoJSON MultiPolygon (WGS84) from which every place is reachable in its limit; null if none")
+    val area: JsonNode?,
+    val areaM2: Double,
+    @get:Schema(description = "Best-scoring spots inside the area, spread out, best first")
+    val spots: List<Spot>,
+    val at: LocalDateTime? = null,
 )
 
 data class DistrictScore(

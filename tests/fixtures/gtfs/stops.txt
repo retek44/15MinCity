@@ -1,0 +1,3 @@
+stop_id,stop_name,stop_lat,stop_lon,location_type
+corner,Corner,47.50000000,19.05000000,0
+far,Far Corner,47.50809494,19.06194528,0

@@ -2,7 +2,7 @@
 # Weekly data release ("blue/green for data").
 #
 # Builds the next release into a separate database, gates it, and swaps it in:
-#   1. download the latest OSM extract, migrate + import + precompute into reach15_next
+#   1. download the latest OSM extract and GTFS timetable, migrate + import + precompute into reach15_next
 #   2. quality gates (inside `etl run`) and score drift against production (`etl drift`)
 #   3. swap: reach15 -> reach15_prev, reach15_next -> reach15 (a few seconds of reconnects)
 #   4. restart the tile server so it drops cached tiles; API caches expire within the hour
@@ -33,7 +33,8 @@ psql_admin "DROP DATABASE IF EXISTS reach15_next WITH (FORCE);"
 psql_admin "CREATE DATABASE reach15_next;"
 DB_NAME=reach15_next core run --rm flyway
 DB_NAME=reach15_next core run --rm etl download --refresh
-DB_NAME=reach15_next core run --rm etl run /data/budapest.osm.pbf      # fails on quality gates
+DB_NAME=reach15_next core run --rm etl gtfs-download                   # BKK timetable (GTFS)
+DB_NAME=reach15_next core run --rm etl run /data/budapest.osm.pbf   --gtfs /data/budapest_gtfs.zip                                         # fails on quality gates
 DB_NAME=reach15_next core run --rm etl drift --baseline reach15 --candidate reach15_next \
   --report "/data/drift-$(date +%F).json"                                # fails on score drift
 

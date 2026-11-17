@@ -1,0 +1,88 @@
+# Per-pull-request preview stack, used by deploy/preview.sh:
+#
+#   PR=42 PORT=9042 TAG=pr-42 REGISTRY=ghcr.io/<owner>/reach15 DATA_DIR=/opt/reach15/data \
+#     docker compose -f deploy/compose.preview.yml up -d
+#
+# Shares the core Postgres (reach15-core) but owns everything else: its database reach15_pr_<n>,
+# its tile server (config from the PR's tiles/) and its API + web. Only web is published, on a
+# local port behind the edge Caddy (https://pr-<n>.<preview domain>).
+#
+# Service names on the core network are prefixed on purpose: every container on a network answers
+# to its service name there, so a preview service called "api" or "martin" would also receive
+# production's lookups. web only joins the project's private network, where the names are unique.
+name: reach15-pr-${PR:?PR number is required}
+
+services:
+  pr-api:
+    image: ${REGISTRY:?}/api:${TAG:?}
+    restart: unless-stopped
+    environment:
+      REACH15_DB_URL: jdbc:postgresql://db:5432/reach15_pr_${PR}
+      REACH15_DB_USER: ${POSTGRES_USER:?}
+      REACH15_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60
+    mem_limit: 1g
+    networks: [default, core]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q UP <&3'"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  pr-tiles:
+    image: ghcr.io/maplibre/martin:${MARTIN_VERSION:-1.16.1}
+    restart: unless-stopped
+    environment:
+      REACH15_TILES_DB: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/reach15_pr_${PR}
+    command: ["--config", "/config/martin.yaml"]
+    volumes:
+      - ../tiles:/config:ro
+      - ${DATA_DIR:?}:/data:ro # basemap PMTiles, shared with the core stack
+    networks: [default, core]
+
+  web:
+    image: ${REGISTRY:?}/web:${TAG:?}
+    restart: unless-stopped
+    depends_on:
+      pr-api:
+        condition: service_healthy
+      pr-tiles:
+        condition: service_started
+    environment:
+      API_UPSTREAM: pr-api:8080
+      TILES_UPSTREAM: pr-tiles:3000
+    networks: [default]
+    ports:
+      - "127.0.0.1:${PORT:?}:80"
+
+  # One-off tools (docker compose run): build reach15_pr_<n> with the PR's migrations and pipeline.
+  flyway:
+    image: flyway/flyway:11
+    profiles: [tools]
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/reach15_pr_${PR}
+      FLYWAY_USER: ${POSTGRES_USER:?}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ../db/migrations:/flyway/sql:ro
+    command: migrate
+    networks: [core]
+
+  etl:
+    image: ${REGISTRY:?}/etl:${TAG:?}
+    profiles: [tools]
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:?}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      PGDATABASE: reach15_pr_${PR}
+    volumes:
+      - ${DATA_DIR:?}:/data:ro # cached Budapest extract; previews never download
+    networks: [core]
+
+networks:
+  core:
+    # default network of the core stack (docker compose -p reach15-core up -d db martin)
+    name: reach15-core_default
+    external: true

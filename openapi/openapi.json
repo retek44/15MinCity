@@ -10,6 +10,11 @@
               "type" : "null"
             } ]
           },
+          "at" : {
+            "description" : "Local time (Europe/Budapest) whose opening hours were applied; null when none was requested",
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
           "categories" : {
             "items" : {
               "$ref" : "#/components/schemas/CategoryAccess"
@@ -17,7 +22,7 @@
             "type" : "array"
           },
           "mode" : {
-            "enum" : [ "walk", "bike" ],
+            "enum" : [ "walk", "bike", "transit" ],
             "type" : "string"
           },
           "point" : {
@@ -27,9 +32,38 @@
             "description" : "Weighted accessibility score, 0..100",
             "format" : "double",
             "type" : "number"
+          },
+          "transit" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/TransitSummary"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
         "required" : [ "categories", "mode", "point", "score" ],
+        "type" : "object"
+      },
+      "Anchor" : {
+        "properties" : {
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "minutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "mode" : {
+            "enum" : [ "walk", "bike", "transit" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "lat", "lon", "minutes", "mode" ],
         "type" : "object"
       },
       "CategoryAccess" : {
@@ -37,6 +71,10 @@
           "category" : {
             "enum" : [ "grocery", "pharmacy", "doctor", "school", "kindergarten", "park", "transit", "food", "gym", "library" ],
             "type" : "string"
+          },
+          "open" : {
+            "description" : "Whether the place is open at the requested time; null when no time was given or its hours are unknown",
+            "type" : [ "boolean", "null" ]
           },
           "poi" : {
             "oneOf" : [ {
@@ -73,6 +111,41 @@
           }
         },
         "required" : [ "id", "label" ],
+        "type" : "object"
+      },
+      "CommonGroundResponse" : {
+        "properties" : {
+          "anchors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Anchor"
+            },
+            "type" : "array"
+          },
+          "area" : {
+            "description" : "GeoJSON MultiPolygon (WGS84) from which every place is reachable in its limit; null if none",
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/JsonNode"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "areaM2" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "at" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "spots" : {
+            "description" : "Best-scoring spots inside the area, spread out, best first",
+            "items" : {
+              "$ref" : "#/components/schemas/Spot"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "anchors", "areaM2", "spots" ],
         "type" : "object"
       },
       "DataRelease" : {
@@ -289,6 +362,10 @@
           },
           "name" : {
             "type" : [ "string", "null" ]
+          },
+          "openingHours" : {
+            "description" : "OSM opening_hours tag as mapped, if any",
+            "type" : [ "string", "null" ]
           }
         },
         "required" : [ "lat", "lon" ],
@@ -342,6 +419,60 @@
           }
         },
         "required" : [ "kind", "label", "lat", "lon" ],
+        "type" : "object"
+      },
+      "Spot" : {
+        "properties" : {
+          "address" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/ReverseResult"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "score" : {
+            "description" : "Accessibility score of the spot's hexagon for the requested profile, 0..100",
+            "format" : "double",
+            "type" : "number"
+          },
+          "seconds" : {
+            "description" : "Travel time to each place, in the order of the request, seconds",
+            "items" : {
+              "format" : "double",
+              "type" : "number"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "lat", "lon", "score", "seconds" ],
+        "type" : "object"
+      },
+      "TransitSummary" : {
+        "properties" : {
+          "departure" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "stopsReached" : {
+            "description" : "Stops reached within the time budget, on foot or by public transport",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "tripsRunning" : {
+            "description" : "Trips running on the service day; 0 means no timetable for that day",
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "departure", "stopsReached", "tripsRunning" ],
         "type" : "object"
       }
     }
@@ -404,6 +535,15 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "description" : "Local time in Budapest, e.g. 2026-11-22T20:00: only places open then count (unknown hours count as open), and public transport departs then (default: now)",
+          "in" : "query",
+          "name" : "at",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -440,6 +580,79 @@
           }
         },
         "summary" : "POI categories",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/common-ground" : {
+      "get" : {
+        "description" : "Each place is lon,lat,mode,minutes (mode walk, bike or transit; 1..45 minutes), separated by semicolons, e.g. 19.0402,47.4979,transit,30;19.0700,47.5100,bike,15. Times are from home to the place (by public transport: from the place, leaving at `at`). Spots are the best-scoring hexagons inside.",
+        "operationId" : "commonGround",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "places",
+          "required" : true,
+          "schema" : {
+            "maxLength" : 400,
+            "minLength" : 7,
+            "type" : "string"
+          }
+        }, {
+          "description" : "Travel mode the spots are scored for (walk or bike)",
+          "in" : "query",
+          "name" : "mode",
+          "required" : false,
+          "schema" : {
+            "default" : "walk",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "persona",
+          "required" : false,
+          "schema" : {
+            "default" : "balanced",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "weights",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "at",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 5,
+            "format" : "int32",
+            "maximum" : 10,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommonGroundResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Where should we live? The area from which every place can be reached in its own limit",
         "tags" : [ "geo-controller" ]
       }
     },
@@ -532,6 +745,15 @@
               "type" : "integer"
             },
             "type" : "array"
+          }
+        }, {
+          "description" : "Departure by public transport, local time in Budapest (default: now)",
+          "in" : "query",
+          "name" : "at",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
           }
         } ],
         "responses" : {

@@ -22,3 +22,7 @@ api/build/
 api/.gradle/
 api/.kotlin/
 
+
+# Demo recording scratch (docs/demo.gif is kept)
+docs/.video/
+docs/demo.webm

@@ -137,6 +137,80 @@ $$;
 -- ---------------------------------------------------------------------------
 -- On-demand queries (used by the API)
 -- ---------------------------------------------------------------------------
+--
+-- Every on-demand search starts from "seeds": street vertices with the time already spent
+-- when reaching them. A clicked point is one seed (its nearest vertex, plus the walk to it);
+-- a public transport journey is many (every stop reached, at its arrival time). One
+-- Dijkstra from a virtual super-source with an edge of cost `seconds` to each seed then gives
+-- the earliest time at every vertex - the same trick as the precompute.
+
+DROP FUNCTION IF EXISTS analytics.point_access(double precision, double precision, text, double precision);
+
+-- Nearest main-component vertex to a point and the time to walk there.
+CREATE OR REPLACE FUNCTION analytics.snap_seed(
+    p_lon double precision,
+    p_lat double precision,
+    OUT vertex_id bigint,
+    OUT seconds double precision)
+LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    v_snap_m double precision;
+BEGIN
+    SELECT n.vertex_id, n.distance_m INTO vertex_id, v_snap_m FROM routing.nearest_vertex(p_lon, p_lat) n;
+    IF vertex_id IS NULL OR v_snap_m > 500 THEN
+        RAISE EXCEPTION 'point is not near the street network'
+            USING ERRCODE = 'invalid_parameter_value',
+                  DETAIL = format('nearest street vertex is %s m away', round(v_snap_m));
+    END IF;
+    seconds := v_snap_m / analytics.mode_speed('walk');
+END
+$$;
+
+-- Every vertex reachable from the seeds within p_max_seconds.
+--
+-- p_reverse: time from each vertex *to* the seeds instead of from them (for "how long from
+--   here to my office": by bike the graph is directed, so the search runs on the reversed graph).
+-- The edge set is limited to a box around the seeds, as far as the remaining budget reaches at
+-- the mode's top speed (computed in EPSG:23700, metres).
+CREATE OR REPLACE FUNCTION analytics.reach_seeded(
+    p_vertices bigint[],
+    p_seconds double precision[],
+    p_mode text,
+    p_max_seconds double precision,
+    p_reverse boolean DEFAULT false)
+RETURNS TABLE (node bigint, seconds double precision)
+LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    v_speed double precision := analytics.mode_speed(p_mode);
+    v_bbox  geometry;
+BEGIN
+    IF p_vertices IS NULL OR p_seconds IS NULL OR cardinality(p_vertices) <> cardinality(p_seconds) THEN
+        RAISE EXCEPTION 'seed vertices and seconds must be arrays of the same length'
+            USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+
+    SELECT ST_Transform(ST_SetSRID(ST_Extent(
+               ST_Expand(ST_Transform(v.geom, 23700), (p_max_seconds - s.sec) * v_speed + 100))::geometry, 23700), 4326)
+    INTO v_bbox
+    FROM unnest(p_vertices, p_seconds) AS s (vertex_id, sec)
+    JOIN routing.vertices v ON v.id = s.vertex_id
+    WHERE s.sec <= p_max_seconds;
+    IF v_bbox IS NULL THEN
+        RETURN;
+    END IF;
+
+    -- Super-source 0 (OSM ids are positive) with negative ids for its edges, like the precompute.
+    RETURN QUERY
+    SELECT d.end_vid, d.agg_cost
+    FROM pgr_dijkstraCost(
+        analytics.edges_sql(p_mode, p_reverse, v_bbox)
+            || format(' UNION ALL SELECT -row_number() OVER (), 0, s.v, s.sec, -1'
+                      ' FROM unnest(%L::bigint[], %L::float8[]) AS s (v, sec) WHERE s.sec <= %s',
+                      p_vertices, p_seconds, p_max_seconds),
+        0, ARRAY(SELECT v.id FROM routing.vertices v WHERE v.geom && v_bbox), directed => true) d
+    WHERE d.agg_cost <= p_max_seconds;
+END
+$$;
 
 -- Every vertex reachable from a point within p_max_seconds. The walk from the point to
 -- its nearest vertex is included in the time.
@@ -148,49 +222,81 @@ CREATE OR REPLACE FUNCTION analytics.reach(
 RETURNS TABLE (node bigint, seconds double precision)
 LANGUAGE plpgsql STABLE AS $$
 DECLARE
-    v_start    bigint;
-    v_snap_m   double precision;
-    v_offset   double precision;
-    v_radius_m double precision;
-    v_bbox     geometry;
+    s record;
 BEGIN
-    SELECT n.vertex_id, n.distance_m INTO v_start, v_snap_m FROM routing.nearest_vertex(p_lon, p_lat) n;
-    IF v_start IS NULL OR v_snap_m > 500 THEN
-        RAISE EXCEPTION 'point is not near the street network'
-            USING ERRCODE = 'invalid_parameter_value',
-                  DETAIL = format('nearest street vertex is %s m away', round(v_snap_m));
-    END IF;
-
-    v_offset := v_snap_m / analytics.mode_speed('walk');
-    v_radius_m := p_max_seconds * analytics.mode_speed(p_mode) + 100;
-    v_bbox := ST_Transform(
-        ST_Expand(ST_Transform(ST_SetSRID(ST_MakePoint(p_lon, p_lat), 4326), 23700), v_radius_m), 4326);
-
-    -- pgr_dijkstraCost to every vertex in the box (see compute_category_times for why not
-    -- pgr_drivingDistance). The start vertex is not reported as its own target.
+    SELECT * INTO s FROM analytics.snap_seed(p_lon, p_lat);
     RETURN QUERY
-    SELECT v_start, v_offset
-    UNION ALL
-    SELECT d.end_vid, d.agg_cost + v_offset
-    FROM pgr_dijkstraCost(analytics.edges_sql(p_mode, false, v_bbox), v_start,
-                          ARRAY(SELECT v.id FROM routing.vertices v WHERE v.geom && v_bbox AND v.id <> v_start),
-                          directed => true) d
-    WHERE d.agg_cost + v_offset <= p_max_seconds;
+    SELECT r.node, r.seconds
+    FROM analytics.reach_seeded(ARRAY[s.vertex_id], ARRAY[s.seconds], p_mode, p_max_seconds) r;
 END
 $$;
 
--- Isochrone polygons as unions of H3 cells (default resolution 10, ~66 m edge).
+-- H3 cells reached from the seeds, each with its earliest time.
 --
 -- Every edge touched by the search is sampled every ~30 m; each sample gets the time it is
--- reached from either end (partially reachable edges are cut where time runs out), each
--- H3 cell keeps its earliest time, and each limit becomes the polygon of the cells reached
--- in time. Measured on Budapest: ~1 s for 15 min by bike, where buffering the reached
--- streets (ST_Buffer of ~40k segments) took 7.5 s for a single limit.
-DROP FUNCTION IF EXISTS analytics.isochrone(double precision, double precision, text, integer[], double precision);
+-- reached from either end (partially reachable edges are cut where time runs out), and each
+-- H3 cell keeps its earliest time. Measured on Budapest: ~1 s for 15 min by bike, where
+-- buffering the reached streets (ST_Buffer of ~40k segments) took 7.5 s for a single limit.
+CREATE OR REPLACE FUNCTION analytics.reach_cells(
+    p_vertices bigint[],
+    p_seconds double precision[],
+    p_mode text,
+    p_max_seconds double precision,
+    p_reverse boolean DEFAULT false,
+    p_resolution integer DEFAULT 10)
+RETURNS TABLE (h3 h3index, seconds double precision)
+LANGUAGE plpgsql STABLE AS $$
+BEGIN
+    RETURN QUERY
+    WITH r AS (
+        SELECT * FROM analytics.reach_seeded(p_vertices, p_seconds, p_mode, p_max_seconds, p_reverse)
+    ),
+    touched AS (
+        SELECT e.id FROM r JOIN routing.edges e ON e.source = r.node
+        UNION
+        SELECT e.id FROM r JOIN routing.edges e ON e.target = r.node
+    ),
+    costs AS (
+        SELECT e.geom,
+               CASE p_mode WHEN 'walk' THEN e.cost_walk_s ELSE e.cost_bike_s END                 AS fwd,
+               CASE p_mode WHEN 'walk' THEN e.reverse_cost_walk_s ELSE e.reverse_cost_bike_s END AS bwd,
+               rs.seconds AS s_sec,
+               rt.seconds AS t_sec
+        FROM touched
+        JOIN routing.edges e USING (id)
+        LEFT JOIN r rs ON rs.node = e.source
+        LEFT JOIN r rt ON rt.node = e.target
+    ),
+    -- Leaving a vertex along the edge uses the travel direction's cost; towards the seeds
+    -- (p_reverse) the direction flips.
+    e AS (
+        SELECT geom, s_sec, t_sec,
+               CASE WHEN p_reverse THEN bwd ELSE fwd END AS from_source,
+               CASE WHEN p_reverse THEN fwd ELSE bwd END AS from_target
+        FROM costs
+    ),
+    samples AS (
+        SELECT dp.geom AS pt,
+               least(
+                   CASE WHEN e.s_sec IS NOT NULL AND e.from_source > 0
+                        THEN e.s_sec + ST_LineLocatePoint(e.geom, dp.geom) * e.from_source END,
+                   CASE WHEN e.t_sec IS NOT NULL AND e.from_target > 0
+                        THEN e.t_sec + (1 - ST_LineLocatePoint(e.geom, dp.geom)) * e.from_target END
+               ) AS seconds
+        FROM e
+        CROSS JOIN LATERAL ST_DumpPoints(ST_Segmentize(e.geom, 0.0003)) dp
+    )
+    SELECT h3_latlng_to_cell(s.pt, p_resolution), min(s.seconds)
+    FROM samples s
+    WHERE s.seconds IS NOT NULL AND s.seconds <= p_max_seconds
+    GROUP BY 1;
+END
+$$;
 
-CREATE OR REPLACE FUNCTION analytics.isochrone(
-    p_lon double precision,
-    p_lat double precision,
+-- Isochrone polygons (unions of H3 cells, default resolution 10, ~66 m edge) from seeds.
+CREATE OR REPLACE FUNCTION analytics.isochrone_seeded(
+    p_vertices bigint[],
+    p_seconds double precision[],
     p_mode text DEFAULT 'walk',
     p_minutes integer[] DEFAULT '{5,10,15}',
     p_resolution integer DEFAULT 10)
@@ -203,41 +309,9 @@ BEGIN
     END IF;
 
     RETURN QUERY
-    WITH r AS (
-        SELECT * FROM analytics.reach(p_lon, p_lat, p_mode, (SELECT max(m) FROM unnest(p_minutes) m) * 60.0)
-    ),
-    touched AS (
-        SELECT e.id FROM r JOIN routing.edges e ON e.source = r.node
-        UNION
-        SELECT e.id FROM r JOIN routing.edges e ON e.target = r.node
-    ),
-    e AS (
-        SELECT e.geom,
-               CASE p_mode WHEN 'walk' THEN e.cost_walk_s ELSE e.cost_bike_s END                 AS fwd,
-               CASE p_mode WHEN 'walk' THEN e.reverse_cost_walk_s ELSE e.reverse_cost_bike_s END AS bwd,
-               rs.seconds AS s_sec,
-               rt.seconds AS t_sec
-        FROM touched
-        JOIN routing.edges e USING (id)
-        LEFT JOIN r rs ON rs.node = e.source
-        LEFT JOIN r rt ON rt.node = e.target
-    ),
-    samples AS (
-        SELECT dp.geom AS pt,
-               least(
-                   CASE WHEN e.s_sec IS NOT NULL AND e.fwd > 0
-                        THEN e.s_sec + ST_LineLocatePoint(e.geom, dp.geom) * e.fwd END,
-                   CASE WHEN e.t_sec IS NOT NULL AND e.bwd > 0
-                        THEN e.t_sec + (1 - ST_LineLocatePoint(e.geom, dp.geom)) * e.bwd END
-               ) AS seconds
-        FROM e
-        CROSS JOIN LATERAL ST_DumpPoints(ST_Segmentize(e.geom, 0.0003)) dp
-    ),
-    cells AS (
-        SELECT h3_latlng_to_cell(s.pt, p_resolution) AS h3, min(s.seconds) AS seconds
-        FROM samples s
-        WHERE s.seconds IS NOT NULL
-        GROUP BY 1
+    WITH cells AS (
+        SELECT * FROM analytics.reach_cells(p_vertices, p_seconds, p_mode,
+                                            (SELECT max(m) FROM unnest(p_minutes) m) * 60.0, false, p_resolution)
     )
     SELECT lim.minutes,
            ST_Multi(h3_cells_to_multi_polygon_geometry(array_agg(c.h3)))
@@ -248,23 +322,84 @@ BEGIN
 END
 $$;
 
--- Nearest POI of every category from a point, with travel time.
+-- Isochrones from a point.
+DROP FUNCTION IF EXISTS analytics.isochrone(double precision, double precision, text, integer[], double precision);
+
+CREATE OR REPLACE FUNCTION analytics.isochrone(
+    p_lon double precision,
+    p_lat double precision,
+    p_mode text DEFAULT 'walk',
+    p_minutes integer[] DEFAULT '{5,10,15}',
+    p_resolution integer DEFAULT 10)
+RETURNS TABLE (minutes integer, geom geometry)
+LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    s record;
+BEGIN
+    SELECT * INTO s FROM analytics.snap_seed(p_lon, p_lat);
+    RETURN QUERY
+    SELECT i.minutes, i.geom
+    FROM analytics.isochrone_seeded(ARRAY[s.vertex_id], ARRAY[s.seconds], p_mode, p_minutes, p_resolution) i;
+END
+$$;
+
+-- Minute of the week (0 = Monday 00:00) of a local time, the unit of analytics.poi_hours.
+CREATE OR REPLACE FUNCTION analytics.minute_of_week(p_at timestamp)
+RETURNS integer
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+    SELECT (extract(isodow FROM p_at)::int - 1) * 1440
+           + extract(hour FROM p_at)::int * 60
+           + extract(minute FROM p_at)::int
+$$;
+
+-- Nearest POI of every category from the seeds, with travel time.
+--
+-- p_at: only places open at that local time count; places with unknown opening hours are kept
+--   (most OSM shops have no opening_hours tag) and reported with open = NULL.
+CREATE OR REPLACE FUNCTION analytics.point_access_seeded(
+    p_vertices bigint[],
+    p_seconds double precision[],
+    p_mode text DEFAULT 'walk',
+    p_max_seconds double precision DEFAULT 1800,
+    p_at timestamp DEFAULT NULL)
+RETURNS TABLE (category text, seconds double precision, poi_name text, poi_lon double precision,
+               poi_lat double precision, opening_hours text, open boolean)
+LANGUAGE plpgsql STABLE AS $$
+BEGIN
+    RETURN QUERY
+    WITH candidates AS (
+        SELECT pv.category, r.seconds, p.name, p.geom, p.opening_hours AS hours,
+               CASE WHEN p_at IS NULL OR h.poi_id IS NULL THEN NULL
+                    ELSE h.open_minutes @> analytics.minute_of_week(p_at) END AS open
+        FROM analytics.reach_seeded(p_vertices, p_seconds, p_mode, p_max_seconds) r
+        JOIN analytics.poi_vertex pv ON pv.vertex_id = r.node
+        JOIN osm.pois p ON p.osm_type = pv.poi_type AND p.osm_id = pv.poi_id
+        LEFT JOIN analytics.poi_hours h ON h.poi_type = p.osm_type AND h.poi_id = p.osm_id
+    )
+    SELECT DISTINCT ON (c.category)
+           c.category, c.seconds, c.name, ST_X(c.geom), ST_Y(c.geom), c.hours, c.open
+    FROM candidates c
+    WHERE c.open IS NOT FALSE
+    ORDER BY c.category, c.seconds, c.open IS NULL, c.name IS NULL, c.name;
+END
+$$;
+
+-- Nearest POI of every category from a point.
 CREATE OR REPLACE FUNCTION analytics.point_access(
     p_lon double precision,
     p_lat double precision,
     p_mode text DEFAULT 'walk',
-    p_max_seconds double precision DEFAULT 1800)
+    p_max_seconds double precision DEFAULT 1800,
+    p_at timestamp DEFAULT NULL)
 RETURNS TABLE (category text, seconds double precision, poi_name text, poi_lon double precision,
-               poi_lat double precision)
+               poi_lat double precision, opening_hours text, open boolean)
 LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    s record;
 BEGIN
+    SELECT * INTO s FROM analytics.snap_seed(p_lon, p_lat);
     RETURN QUERY
-    SELECT DISTINCT ON (pv.category)
-           pv.category, r.seconds, p.name, ST_X(p.geom), ST_Y(p.geom)
-    FROM analytics.reach(p_lon, p_lat, p_mode, p_max_seconds) r
-    JOIN analytics.poi_vertex pv ON pv.vertex_id = r.node
-    JOIN osm.pois p ON p.osm_type = pv.poi_type AND p.osm_id = pv.poi_id
-    ORDER BY pv.category, r.seconds, p.name IS NULL, p.name;
+    SELECT * FROM analytics.point_access_seeded(ARRAY[s.vertex_id], ARRAY[s.seconds], p_mode, p_max_seconds, p_at);
 END
 $$;
 
@@ -341,5 +476,84 @@ BEGIN
     ) t
     WHERE t.geom IS NOT NULL;
     RETURN mvt;
+END
+$$;
+-- "Where should we live?": the area from which every anchor (an office, a school, a parent's
+-- flat) can be reached within its own limit, and the best-scoring hexagons inside it.
+--
+-- p_anchors: [{"vertices": [..], "seconds": [..], "mode": "walk", "reverse": true, "max_seconds": 1200}, ...]
+--   seeds as in reach_seeded. Walking and cycling anchors are searched on the reversed graph
+--   (time from home to the anchor); public transport anchors arrive as the stops reached from the
+--   anchor, walked on from there (the API runs the timetable search, see TransitService).
+-- Spots are resolution-9 cells (the heatmap's) whose centre child lies in the common area, scored
+-- with p_weights, at most one per resolution-8 parent so they are spread over the area.
+CREATE OR REPLACE FUNCTION analytics.common_ground(
+    p_anchors jsonb,
+    p_weights jsonb,
+    p_score_mode text DEFAULT 'walk',
+    p_limit integer DEFAULT 5,
+    p_resolution integer DEFAULT 10)
+RETURNS TABLE (area geometry, cells integer, spots jsonb)
+LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    n integer;
+BEGIN
+    IF p_anchors IS NULL OR jsonb_typeof(p_anchors) <> 'array' THEN
+        RAISE EXCEPTION 'anchors must be an array' USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+    n := jsonb_array_length(p_anchors);
+    IF n NOT BETWEEN 1 AND 4 THEN
+        RAISE EXCEPTION 'between 1 and 4 places are allowed' USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+    IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_anchors) x
+               WHERE (x ->> 'max_seconds')::float8 IS NULL OR (x ->> 'max_seconds')::float8 NOT BETWEEN 60 AND 2700) THEN
+        RAISE EXCEPTION 'each limit must be between 1 and 45 minutes' USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+
+    RETURN QUERY
+    WITH a AS (
+        SELECT (e.ord - 1)::int AS i,
+               ARRAY(SELECT jsonb_array_elements_text(e.x -> 'vertices')::bigint) AS vertices,
+               ARRAY(SELECT jsonb_array_elements_text(e.x -> 'seconds')::float8) AS seconds,
+               e.x ->> 'mode' AS mode,
+               coalesce((e.x ->> 'reverse')::boolean, false) AS reverse,
+               (e.x ->> 'max_seconds')::float8 AS max_seconds
+        FROM jsonb_array_elements(p_anchors) WITH ORDINALITY AS e (x, ord)
+    ),
+    per AS (
+        SELECT a.i, c.h3, c.seconds
+        FROM a
+        CROSS JOIN LATERAL analytics.reach_cells(a.vertices, a.seconds, a.mode, a.max_seconds, a.reverse, p_resolution) c
+    ),
+    common AS MATERIALIZED (
+        SELECT per.h3, array_agg(per.seconds ORDER BY per.i) AS seconds
+        FROM per
+        GROUP BY per.h3
+        HAVING count(*) = n
+    ),
+    candidates AS (
+        SELECT DISTINCT ON (h3_cell_to_parent(s.h3, 8))
+               s.h3, s.score, c.seconds,
+               (SELECT max(x) FROM unnest(c.seconds) x) AS worst
+        FROM common c
+        JOIN analytics.cell_scores(p_weights, p_score_mode) s
+          ON h3_get_resolution(c.h3) >= 9
+         AND s.h3 = h3_cell_to_parent(c.h3, 9)
+         AND c.h3 = h3_cell_to_center_child(s.h3, p_resolution)
+        ORDER BY h3_cell_to_parent(s.h3, 8), s.score DESC, worst
+    ),
+    best AS (
+        SELECT * FROM candidates ORDER BY score DESC, worst LIMIT p_limit
+    )
+    SELECT (SELECT ST_Multi(h3_cells_to_multi_polygon_geometry(array_agg(c.h3))) FROM common c),
+           (SELECT count(*)::int FROM common),
+           coalesce((SELECT jsonb_agg(jsonb_build_object(
+                                'h3', b.h3::text,
+                                'lon', ST_X(h3_cell_to_geometry(b.h3)),
+                                'lat', ST_Y(h3_cell_to_geometry(b.h3)),
+                                'score', b.score,
+                                'seconds', to_jsonb(b.seconds))
+                            ORDER BY b.score DESC, b.worst)
+                     FROM best b), '[]'::jsonb);
 END
 $$;

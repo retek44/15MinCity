@@ -450,6 +450,215 @@ button {
   color: var(--saffron);
 }
 
+/* when? */
+.when {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.when-input {
+  width: fit-content;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--sheet);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.when-note {
+  font-size: 13px;
+  color: var(--rail-muted);
+}
+
+/* where should we live? */
+.common h2 {
+  font-family: var(--num);
+  font-stretch: 75%;
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.anchors {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.anchor {
+  display: grid;
+  grid-template-columns: 28px 1fr auto auto 36px;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.anchor-badge,
+.map-marker.anchor {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--saffron);
+  color: #151826;
+  font-size: 18px;
+  border-radius: 2px;
+}
+
+.anchor-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.anchor select {
+  min-height: 32px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--rail-deep);
+  color: var(--rail-ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+.rail-icon {
+  color: var(--rail-ink);
+  margin: 0;
+}
+
+.rail-icon:hover {
+  background: var(--rail-deep);
+}
+
+.common-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rail-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rail-button:disabled:hover {
+  background: transparent;
+}
+
+.common .hint {
+  margin-top: 8px;
+}
+
+.common-result {
+  margin-top: 10px;
+}
+
+.common-error {
+  color: #ffd0c8;
+  font-size: 14px;
+}
+
+.common-subtitle {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 8px 0 4px;
+}
+
+.spots li + li {
+  border-top: 1px solid var(--rail-rule);
+}
+
+.spot {
+  display: grid;
+  grid-template-columns: 32px 1fr 36px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 6px;
+  margin: 0 -6px;
+  width: calc(100% + 12px);
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--rail-ink);
+  text-align: left;
+}
+
+.spot:hover {
+  background: var(--rail-deep);
+}
+
+.spot-numeral {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--saffron);
+}
+
+.spot-text {
+  min-width: 0;
+}
+
+.spot-name {
+  display: block;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spot-times {
+  display: block;
+  font-size: 13px;
+  color: var(--rail-muted);
+}
+
+.spot-score {
+  font-size: 22px;
+  text-align: right;
+}
+
+/* map markers of "where should we live?" */
+.map-marker {
+  font-family: var(--num);
+  font-stretch: 62%;
+  font-weight: 850;
+  box-shadow: 0 0 0 2px var(--paper);
+}
+
+.map-marker.spot {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* place panel: the time the answer is for */
+.place-when {
+  font-size: 13px;
+  color: var(--muted);
+  margin: -6px 0 10px;
+}
+
+.place-when.warn {
+  color: var(--error);
+  font-weight: 600;
+}
+
 /* district roster */
 .roster h2 {
   font-family: var(--num);

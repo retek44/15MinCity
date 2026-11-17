@@ -12,7 +12,7 @@ spring:
     problemdetails:
       enabled: true
   cache:
-    cache-names: isochrone,access,ranking
+    cache-names: isochrone,access,ranking,transitSeeds
     caffeine:
       spec: maximumSize=5000,expireAfterWrite=1h
 

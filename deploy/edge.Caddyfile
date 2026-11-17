@@ -9,3 +9,7 @@
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	import /etc/caddy/upstream.caddy
 }
+
+# Pull request previews (ADR 0006): deploy/preview.sh writes one site block per open PR
+# (pr-<n>.<preview domain> -> 127.0.0.1:<9000 + n % 1000>). No files is fine: Caddy only warns.
+import /etc/caddy/previews/*.caddy

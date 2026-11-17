@@ -37,3 +37,10 @@ def test_cells_outside_every_district_fail():
 def test_category_without_sources_fails():
     failures = evaluate({**HEALTHY, "sources_by_category": {"grocery": 1}})
     assert failures == ["category 'park' has POIs but no routable source"]
+
+
+def test_transit_stops_must_reach_the_street_graph():
+    base = {"edges": 10, "main_component_share": 1.0, "transit_stops": 100}
+    assert any("transit stops" in f for f in evaluate({**base, "transit_stops_snapped_share": 0.5}))
+    assert not any("transit stops" in f for f in evaluate({**base, "transit_stops_snapped_share": 0.95}))
+    assert not any("transit stops" in f for f in evaluate({**base, "transit_stops": 0}))

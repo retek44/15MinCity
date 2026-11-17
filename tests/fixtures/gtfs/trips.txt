@@ -1,0 +1,193 @@
+route_id,service_id,trip_id,trip_headsign,direction_id
+T1,WD,T1-0-0600,Far Corner,0
+T1,WD,T1-1-0600,Corner,1
+T1,WD,T1-0-0610,Far Corner,0
+T1,WD,T1-1-0610,Corner,1
+T1,WD,T1-0-0620,Far Corner,0
+T1,WD,T1-1-0620,Corner,1
+T1,WD,T1-0-0630,Far Corner,0
+T1,WD,T1-1-0630,Corner,1
+T1,WD,T1-0-0640,Far Corner,0
+T1,WD,T1-1-0640,Corner,1
+T1,WD,T1-0-0650,Far Corner,0
+T1,WD,T1-1-0650,Corner,1
+T1,WD,T1-0-0700,Far Corner,0
+T1,WD,T1-1-0700,Corner,1
+T1,WD,T1-0-0710,Far Corner,0
+T1,WD,T1-1-0710,Corner,1
+T1,WD,T1-0-0720,Far Corner,0
+T1,WD,T1-1-0720,Corner,1
+T1,WD,T1-0-0730,Far Corner,0
+T1,WD,T1-1-0730,Corner,1
+T1,WD,T1-0-0740,Far Corner,0
+T1,WD,T1-1-0740,Corner,1
+T1,WD,T1-0-0750,Far Corner,0
+T1,WD,T1-1-0750,Corner,1
+T1,WD,T1-0-0800,Far Corner,0
+T1,WD,T1-1-0800,Corner,1
+T1,WD,T1-0-0810,Far Corner,0
+T1,WD,T1-1-0810,Corner,1
+T1,WD,T1-0-0820,Far Corner,0
+T1,WD,T1-1-0820,Corner,1
+T1,WD,T1-0-0830,Far Corner,0
+T1,WD,T1-1-0830,Corner,1
+T1,WD,T1-0-0840,Far Corner,0
+T1,WD,T1-1-0840,Corner,1
+T1,WD,T1-0-0850,Far Corner,0
+T1,WD,T1-1-0850,Corner,1
+T1,WD,T1-0-0900,Far Corner,0
+T1,WD,T1-1-0900,Corner,1
+T1,WD,T1-0-0910,Far Corner,0
+T1,WD,T1-1-0910,Corner,1
+T1,WD,T1-0-0920,Far Corner,0
+T1,WD,T1-1-0920,Corner,1
+T1,WD,T1-0-0930,Far Corner,0
+T1,WD,T1-1-0930,Corner,1
+T1,WD,T1-0-0940,Far Corner,0
+T1,WD,T1-1-0940,Corner,1
+T1,WD,T1-0-0950,Far Corner,0
+T1,WD,T1-1-0950,Corner,1
+T1,WD,T1-0-1000,Far Corner,0
+T1,WD,T1-1-1000,Corner,1
+T1,WD,T1-0-1010,Far Corner,0
+T1,WD,T1-1-1010,Corner,1
+T1,WD,T1-0-1020,Far Corner,0
+T1,WD,T1-1-1020,Corner,1
+T1,WD,T1-0-1030,Far Corner,0
+T1,WD,T1-1-1030,Corner,1
+T1,WD,T1-0-1040,Far Corner,0
+T1,WD,T1-1-1040,Corner,1
+T1,WD,T1-0-1050,Far Corner,0
+T1,WD,T1-1-1050,Corner,1
+T1,WD,T1-0-1100,Far Corner,0
+T1,WD,T1-1-1100,Corner,1
+T1,WD,T1-0-1110,Far Corner,0
+T1,WD,T1-1-1110,Corner,1
+T1,WD,T1-0-1120,Far Corner,0
+T1,WD,T1-1-1120,Corner,1
+T1,WD,T1-0-1130,Far Corner,0
+T1,WD,T1-1-1130,Corner,1
+T1,WD,T1-0-1140,Far Corner,0
+T1,WD,T1-1-1140,Corner,1
+T1,WD,T1-0-1150,Far Corner,0
+T1,WD,T1-1-1150,Corner,1
+T1,WD,T1-0-1200,Far Corner,0
+T1,WD,T1-1-1200,Corner,1
+T1,WD,T1-0-1210,Far Corner,0
+T1,WD,T1-1-1210,Corner,1
+T1,WD,T1-0-1220,Far Corner,0
+T1,WD,T1-1-1220,Corner,1
+T1,WD,T1-0-1230,Far Corner,0
+T1,WD,T1-1-1230,Corner,1
+T1,WD,T1-0-1240,Far Corner,0
+T1,WD,T1-1-1240,Corner,1
+T1,WD,T1-0-1250,Far Corner,0
+T1,WD,T1-1-1250,Corner,1
+T1,WD,T1-0-1300,Far Corner,0
+T1,WD,T1-1-1300,Corner,1
+T1,WD,T1-0-1310,Far Corner,0
+T1,WD,T1-1-1310,Corner,1
+T1,WD,T1-0-1320,Far Corner,0
+T1,WD,T1-1-1320,Corner,1
+T1,WD,T1-0-1330,Far Corner,0
+T1,WD,T1-1-1330,Corner,1
+T1,WD,T1-0-1340,Far Corner,0
+T1,WD,T1-1-1340,Corner,1
+T1,WD,T1-0-1350,Far Corner,0
+T1,WD,T1-1-1350,Corner,1
+T1,WD,T1-0-1400,Far Corner,0
+T1,WD,T1-1-1400,Corner,1
+T1,WD,T1-0-1410,Far Corner,0
+T1,WD,T1-1-1410,Corner,1
+T1,WD,T1-0-1420,Far Corner,0
+T1,WD,T1-1-1420,Corner,1
+T1,WD,T1-0-1430,Far Corner,0
+T1,WD,T1-1-1430,Corner,1
+T1,WD,T1-0-1440,Far Corner,0
+T1,WD,T1-1-1440,Corner,1
+T1,WD,T1-0-1450,Far Corner,0
+T1,WD,T1-1-1450,Corner,1
+T1,WD,T1-0-1500,Far Corner,0
+T1,WD,T1-1-1500,Corner,1
+T1,WD,T1-0-1510,Far Corner,0
+T1,WD,T1-1-1510,Corner,1
+T1,WD,T1-0-1520,Far Corner,0
+T1,WD,T1-1-1520,Corner,1
+T1,WD,T1-0-1530,Far Corner,0
+T1,WD,T1-1-1530,Corner,1
+T1,WD,T1-0-1540,Far Corner,0
+T1,WD,T1-1-1540,Corner,1
+T1,WD,T1-0-1550,Far Corner,0
+T1,WD,T1-1-1550,Corner,1
+T1,WD,T1-0-1600,Far Corner,0
+T1,WD,T1-1-1600,Corner,1
+T1,WD,T1-0-1610,Far Corner,0
+T1,WD,T1-1-1610,Corner,1
+T1,WD,T1-0-1620,Far Corner,0
+T1,WD,T1-1-1620,Corner,1
+T1,WD,T1-0-1630,Far Corner,0
+T1,WD,T1-1-1630,Corner,1
+T1,WD,T1-0-1640,Far Corner,0
+T1,WD,T1-1-1640,Corner,1
+T1,WD,T1-0-1650,Far Corner,0
+T1,WD,T1-1-1650,Corner,1
+T1,WD,T1-0-1700,Far Corner,0
+T1,WD,T1-1-1700,Corner,1
+T1,WD,T1-0-1710,Far Corner,0
+T1,WD,T1-1-1710,Corner,1
+T1,WD,T1-0-1720,Far Corner,0
+T1,WD,T1-1-1720,Corner,1
+T1,WD,T1-0-1730,Far Corner,0
+T1,WD,T1-1-1730,Corner,1
+T1,WD,T1-0-1740,Far Corner,0
+T1,WD,T1-1-1740,Corner,1
+T1,WD,T1-0-1750,Far Corner,0
+T1,WD,T1-1-1750,Corner,1
+T1,WD,T1-0-1800,Far Corner,0
+T1,WD,T1-1-1800,Corner,1
+T1,WD,T1-0-1810,Far Corner,0
+T1,WD,T1-1-1810,Corner,1
+T1,WD,T1-0-1820,Far Corner,0
+T1,WD,T1-1-1820,Corner,1
+T1,WD,T1-0-1830,Far Corner,0
+T1,WD,T1-1-1830,Corner,1
+T1,WD,T1-0-1840,Far Corner,0
+T1,WD,T1-1-1840,Corner,1
+T1,WD,T1-0-1850,Far Corner,0
+T1,WD,T1-1-1850,Corner,1
+T1,WD,T1-0-1900,Far Corner,0
+T1,WD,T1-1-1900,Corner,1
+T1,WD,T1-0-1910,Far Corner,0
+T1,WD,T1-1-1910,Corner,1
+T1,WD,T1-0-1920,Far Corner,0
+T1,WD,T1-1-1920,Corner,1
+T1,WD,T1-0-1930,Far Corner,0
+T1,WD,T1-1-1930,Corner,1
+T1,WD,T1-0-1940,Far Corner,0
+T1,WD,T1-1-1940,Corner,1
+T1,WD,T1-0-1950,Far Corner,0
+T1,WD,T1-1-1950,Corner,1
+T1,WD,T1-0-2000,Far Corner,0
+T1,WD,T1-1-2000,Corner,1
+T1,WD,T1-0-2010,Far Corner,0
+T1,WD,T1-1-2010,Corner,1
+T1,WD,T1-0-2020,Far Corner,0
+T1,WD,T1-1-2020,Corner,1
+T1,WD,T1-0-2030,Far Corner,0
+T1,WD,T1-1-2030,Corner,1
+T1,WD,T1-0-2040,Far Corner,0
+T1,WD,T1-1-2040,Corner,1
+T1,WD,T1-0-2050,Far Corner,0
+T1,WD,T1-1-2050,Corner,1
+T1,WD,T1-0-2100,Far Corner,0
+T1,WD,T1-1-2100,Corner,1
+T1,WD,T1-0-2110,Far Corner,0
+T1,WD,T1-1-2110,Corner,1
+T1,WD,T1-0-2120,Far Corner,0
+T1,WD,T1-1-2120,Corner,1
+T1,WD,T1-0-2130,Far Corner,0
+T1,WD,T1-1-2130,Corner,1
+T1,WD,T1-0-2140,Far Corner,0
+T1,WD,T1-1-2140,Corner,1
+T1,WD,T1-0-2150,Far Corner,0
+T1,WD,T1-1-2150,Corner,1

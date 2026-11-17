@@ -21,7 +21,7 @@ export function ProfilePanel({ t, mode, onMode, personas, personaId, onPersona, 
   return (
     <section className="controls" aria-label={t.persona}>
       <div className="segmented" role="radiogroup" aria-label={t.travelMode}>
-        {(["walk", "bike"] as const).map((m) => (
+        {(["walk", "bike", "transit"] as const).map((m) => (
           <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => onMode(m)}>
             <Icon name={m} />
             {t[m]}

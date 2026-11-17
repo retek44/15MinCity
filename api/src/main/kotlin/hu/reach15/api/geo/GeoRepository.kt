@@ -5,7 +5,10 @@ import hu.reach15.api.domain.Mode
 import hu.reach15.api.domain.Weights
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.jdbc.core.simple.JdbcClient
+import hu.reach15.api.transit.Seeds
 import org.springframework.stereotype.Repository
+import java.sql.ResultSet
+import java.time.LocalDateTime
 import tools.jackson.databind.json.JsonMapper
 
 /** Thin wrapper over the SQL functions in db/migrations; all spatial logic lives in the database. */
@@ -38,38 +41,98 @@ class GeoRepository(
             }.optional().orElse(null)
 
     @Cacheable("isochrone")
-    fun isochrone(lon: Double, lat: Double, mode: Mode, minutes: List<Int>): FeatureCollection {
-        val features =
+    fun isochrone(lon: Double, lat: Double, mode: Mode, minutes: List<Int>): FeatureCollection =
+        isochrones(
             jdbc.sql(
                 """
                 SELECT minutes, ST_AsGeoJSON(geom, 6) AS geometry, ST_Area(geom::geography) AS area_m2
                 FROM analytics.isochrone(?, ?, ?, ?::int[])
                 """.trimIndent(),
-            ).params(lon, lat, mode.id, minutes.joinToString(",", "{", "}"))
-                .query { rs, _ ->
-                    Feature(
-                        mapOf("minutes" to rs.getInt("minutes"), "mode" to mode.id, "areaM2" to rs.getDouble("area_m2")),
-                        json.readTree(rs.getString("geometry")),
-                    )
-                }.list()
-        return FeatureCollection(features)
-    }
+            ).params(lon, lat, mode.id, intArray(minutes)),
+            mode,
+        )
 
-    data class NearestPoi(val category: Category, val seconds: Double, val poi: Poi)
+    /** Isochrones on foot from seeds (public transport: the stops a journey reaches). */
+    fun isochroneSeeded(seeds: Seeds, minutes: List<Int>, mode: Mode): FeatureCollection =
+        isochrones(
+            jdbc.sql(
+                """
+                SELECT minutes, ST_AsGeoJSON(geom, 6) AS geometry, ST_Area(geom::geography) AS area_m2
+                FROM analytics.isochrone_seeded(?::bigint[], ?::float8[], 'walk', ?::int[])
+                """.trimIndent(),
+            ).params(seeds.vertexArray(), seeds.secondsArray(), intArray(minutes)),
+            mode,
+        )
+
+    private fun isochrones(statement: JdbcClient.StatementSpec, mode: Mode) =
+        FeatureCollection(
+            statement.query { rs, _ ->
+                Feature(
+                    mapOf("minutes" to rs.getInt("minutes"), "mode" to mode.id, "areaM2" to rs.getDouble("area_m2")),
+                    json.readTree(rs.getString("geometry")),
+                )
+            }.list(),
+        )
+
+    data class NearestPoi(val category: Category, val seconds: Double, val poi: Poi, val open: Boolean?)
 
     @Cacheable("access")
-    fun pointAccess(lon: Double, lat: Double, mode: Mode): List<NearestPoi> =
-        jdbc.sql("SELECT * FROM analytics.point_access(?, ?, ?)")
-            .params(lon, lat, mode.id)
+    fun pointAccess(lon: Double, lat: Double, mode: Mode, at: LocalDateTime?): List<NearestPoi> =
+        jdbc.sql("SELECT * FROM analytics.point_access(?, ?, ?, 1800, ?::timestamp)")
+            .param(lon).param(lat).param(mode.id).param(at)
+            .query(::nearestPoi).list().filterNotNull()
+
+    /** Nearest places on foot from seeds (public transport: the stops a journey reaches). */
+    fun pointAccessSeeded(seeds: Seeds, at: LocalDateTime?): List<NearestPoi> =
+        jdbc.sql("SELECT * FROM analytics.point_access_seeded(?::bigint[], ?::float8[], 'walk', 1800, ?::timestamp)")
+            .param(seeds.vertexArray()).param(seeds.secondsArray()).param(at)
+            .query(::nearestPoi).list().filterNotNull()
+
+    private fun nearestPoi(rs: ResultSet, @Suppress("UNUSED_PARAMETER") row: Int): NearestPoi? =
+        Category.fromDb(rs.getString("category"))?.let { category ->
+            NearestPoi(
+                category,
+                rs.getDouble("seconds"),
+                Poi(rs.getString("poi_name"), rs.getDouble("poi_lon"), rs.getDouble("poi_lat"), rs.getString("opening_hours")),
+                rs.getObject("open") as Boolean?,
+            )
+        }
+
+    /** Start of a street search from a point: nearest vertex and the walk to it. */
+    fun snapSeed(lon: Double, lat: Double): Seeds =
+        jdbc.sql("SELECT vertex_id, seconds FROM analytics.snap_seed(?, ?)")
+            .params(lon, lat)
+            .query { rs, _ -> Seeds(listOf(rs.getLong(1)), listOf(rs.getDouble(2))) }
+            .single()
+
+    data class CommonGround(val area: tools.jackson.databind.JsonNode?, val areaM2: Double, val spots: List<RawSpot>)
+
+    data class RawSpot(val lon: Double, val lat: Double, val score: Double, val seconds: List<Double>)
+
+    /** [anchors]: the JSON accepted by analytics.common_ground. */
+    fun commonGround(anchors: List<Map<String, Any>>, weights: Weights, scoreMode: Mode, limit: Int): CommonGround =
+        jdbc.sql(
+            """
+            SELECT ST_AsGeoJSON(area, 6) AS area, coalesce(ST_Area(area::geography), 0) AS area_m2, spots
+            FROM analytics.common_ground(?::jsonb, ?::jsonb, ?, ?)
+            """.trimIndent(),
+        ).params(json.writeValueAsString(anchors), json.writeValueAsString(weights.toJson()), scoreMode.id, limit)
             .query { rs, _ ->
-                Category.fromDb(rs.getString("category"))?.let { category ->
-                    NearestPoi(
-                        category,
-                        rs.getDouble("seconds"),
-                        Poi(rs.getString("poi_name"), rs.getDouble("poi_lon"), rs.getDouble("poi_lat")),
-                    )
-                }
-            }.list().filterNotNull()
+                CommonGround(
+                    rs.getString("area")?.let(json::readTree),
+                    rs.getDouble("area_m2"),
+                    json.readTree(rs.getString("spots")).let { a -> (0 until a.size()).map(a::get) }.map { spot ->
+                        RawSpot(
+                            spot["lon"].asDouble(),
+                            spot["lat"].asDouble(),
+                            spot["score"].asDouble(),
+                            spot["seconds"].let { a -> (0 until a.size()).map { a[it].asDouble() } },
+                        )
+                    },
+                )
+            }.single()
+
+    private fun intArray(values: List<Int>) = values.joinToString(",", "{", "}")
 
     @Cacheable("ranking")
     fun districtRanking(weights: Weights, mode: Mode): List<DistrictScore> =

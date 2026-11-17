@@ -1,23 +1,45 @@
-import type { Mode } from "./api/client";
+import type { Anchor, Mode } from "./api/client";
+import { isWhen, type When } from "./when";
 
-/** Shareable state in the URL hash: #p=47.49790,19.05460&m=bike&w=family */
+/** Shareable state in the URL hash: #p=47.49790,19.05460&m=bike&w=family&t=su20&a=47.5,19.04,transit,30 */
 export interface UrlState {
   point?: { lon: number; lat: number };
   mode?: Mode;
   persona?: string;
+  when?: When;
+  /** "Where should we live?" places. */
+  anchors?: Anchor[];
+}
+
+const MODES: Mode[] = ["walk", "bike", "transit"];
+const isMode = (value: string | null | undefined): value is Mode => MODES.includes(value as Mode);
+
+function latLon(lat: number | undefined, lon: number | undefined) {
+  return lat !== undefined && lon !== undefined && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
 }
 
 export function parseUrlState(hash: string): UrlState {
   const params = new URLSearchParams(hash.replace(/^#/, ""));
   const state: UrlState = {};
   const [lat, lon] = (params.get("p") ?? "").split(",").map(Number);
-  if (lat !== undefined && lon !== undefined && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
-    state.point = { lon, lat };
-  }
+  if (latLon(lat, lon)) state.point = { lon: lon!, lat: lat! };
   const mode = params.get("m");
-  if (mode === "walk" || mode === "bike") state.mode = mode;
+  if (isMode(mode)) state.mode = mode;
   const persona = params.get("w");
   if (persona && /^[a-z_-]{1,32}$/.test(persona)) state.persona = persona;
+  const when = params.get("t");
+  if (when && isWhen(when)) state.when = when;
+  const anchors = (params.get("a") ?? "")
+    .split(";")
+    .filter(Boolean)
+    .slice(0, 4)
+    .flatMap((part): Anchor[] => {
+      const [aLat, aLon, aMode, minutes] = part.split(",");
+      const m = Number(minutes);
+      if (!latLon(Number(aLat), Number(aLon)) || !isMode(aMode) || !Number.isInteger(m) || m < 1 || m > 45) return [];
+      return [{ lat: Number(aLat), lon: Number(aLon), mode: aMode, minutes: m }];
+    });
+  if (anchors.length) state.anchors = anchors;
   return state;
 }
 
@@ -26,8 +48,12 @@ export function formatUrlState(state: UrlState): string {
   if (state.point) params.set("p", `${state.point.lat.toFixed(5)},${state.point.lon.toFixed(5)}`);
   if (state.mode && state.mode !== "walk") params.set("m", state.mode);
   if (state.persona && state.persona !== "balanced") params.set("w", state.persona);
-  // Commas are legal in a fragment; keep shared links readable (#p=47.49790,19.05460).
-  const s = params.toString().replaceAll("%2C", ",");
+  if (state.when && state.when !== "any") params.set("t", state.when);
+  if (state.anchors?.length) {
+    params.set("a", state.anchors.map((a) => `${a.lat.toFixed(5)},${a.lon.toFixed(5)},${a.mode},${a.minutes}`).join(";"));
+  }
+  // Commas, colons and semicolons are legal in a fragment; keep shared links readable.
+  const s = params.toString().replaceAll("%2C", ",").replaceAll("%3B", ";").replaceAll("%3A", ":");
   return s ? `#${s}` : "";
 }
 

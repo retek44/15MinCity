@@ -1,4 +1,4 @@
-import type { FeatureCollection } from "geojson";
+import type { FeatureCollection, Geometry } from "geojson";
 import * as maplibregl from "maplibre-gl";
 import type { ExpressionSpecification, GeoJSONSource, Map as MlMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -6,7 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // bundling (production builds 404 on the worker). Emit the worker as an asset and point at it.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef } from "react";
-import type { IsochroneCollection, Mode, Weights } from "../api/client";
+import type { HeatMode, IsochroneCollection, Weights } from "../api/client";
 import { heatColor, score } from "../scoring";
 import { BUDAPEST_BOUNDS, baseStyle, firstSymbolLayer, h3Source, INITIAL_VIEW } from "./style";
 
@@ -28,8 +28,17 @@ export interface DistrictFocus {
   bbox: number[];
 }
 
+/** A lettered place (A-D) or a numbered spot (1-5) of "where should we live?". */
+export interface MapMarker {
+  lon: number;
+  lat: number;
+  text: string;
+  kind: "anchor" | "spot";
+  title: string;
+}
+
 interface Props {
-  mode: Mode;
+  mode: HeatMode;
   /** Weights the heatmap is coloured by (the profile, or one focused category). */
   weights: Weights;
   dark: boolean;
@@ -39,6 +48,9 @@ interface Props {
   point?: { lon: number; lat: number; fly?: boolean };
   isochrones?: IsochroneCollection;
   pois: PoiMarker[];
+  /** "Where should we live?": the area from which every place is in reach. */
+  commonArea?: Geometry | null;
+  markers: MapMarker[];
   focusDistrict?: DistrictFocus;
   scoreLabel: string;
   /** The H3 cell under the selected point (its district feeds the place panel). */
@@ -80,6 +92,7 @@ function addOverlay(map: MlMap, props: Props) {
   if (!map.getSource("r15-iso")) map.addSource("r15-iso", { type: "geojson", data: EMPTY });
   if (!map.getSource("r15-pois")) map.addSource("r15-pois", { type: "geojson", data: EMPTY });
   if (!map.getSource("r15-point")) map.addSource("r15-point", { type: "geojson", data: EMPTY });
+  if (!map.getSource("r15-common")) map.addSource("r15-common", { type: "geojson", data: EMPTY });
 
   if (map.getLayer("r15-h3")) return;
   map.addLayer(
@@ -126,6 +139,25 @@ function addOverlay(map: MlMap, props: Props) {
     },
     before,
   );
+  // Common ground: a saffron plane with a heavy ink edge, above the reach planes.
+  map.addLayer(
+    {
+      id: "r15-common-fill",
+      type: "fill",
+      source: "r15-common",
+      paint: { "fill-color": INK.saffron, "fill-opacity": 0.32 },
+    },
+    before,
+  );
+  map.addLayer(
+    {
+      id: "r15-common-line",
+      type: "line",
+      source: "r15-common",
+      paint: { "line-color": INK.ink[t], "line-width": 2.5 },
+    },
+    before,
+  );
   map.addLayer({
     id: "r15-pois",
     type: "circle",
@@ -152,7 +184,10 @@ function addOverlay(map: MlMap, props: Props) {
 }
 
 /** Pushes the selection (isochrones, nearest POIs, the point) into the overlay sources. */
-function applyData(map: MlMap, { isochrones, pois, point }: Pick<Props, "isochrones" | "pois" | "point">) {
+function applyData(map: MlMap, { isochrones, pois, point, commonArea }: Pick<Props, "isochrones" | "pois" | "point" | "commonArea">) {
+  (map.getSource("r15-common") as GeoJSONSource | undefined)?.setData(
+    commonArea ? { type: "Feature", properties: {}, geometry: commonArea } : EMPTY,
+  );
   // Largest plane first, so the 10- and 5-minute planes print on top of it.
   const iso = isochrones
     ? { ...isochrones, features: [...isochrones.features].sort((a, b) => b.properties.minutes - a.properties.minutes) }
@@ -249,12 +284,45 @@ export function MapView(props: Props) {
     map.setPaintProperty("r15-h3", "fill-opacity", h3Opacity(Boolean(point), focusDistrict));
   }, [mode, weights, dark, point, focusDistrict]);
 
-  const { isochrones, pois } = props;
+  const { isochrones, pois, commonArea } = props;
   useEffect(() => {
     const map = mapRef.current;
     // Before the first style.load there are no sources yet; style.load applies the data then.
-    if (map?.getSource("r15-iso")) applyData(map, { isochrones, pois, point });
-  }, [isochrones, pois, point]);
+    if (map?.getSource("r15-iso")) applyData(map, { isochrones, pois, point, commonArea });
+  }, [isochrones, pois, point, commonArea]);
+
+  // Lettered places and numbered spots are DOM markers: crisp type without a glyph server.
+  const { markers } = props;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const placed = markers.map((m) => {
+      const el = document.createElement("div");
+      el.className = `map-marker ${m.kind}`;
+      el.textContent = m.text;
+      el.title = m.title;
+      el.setAttribute("aria-hidden", "true");
+      if (m.kind === "spot") {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          propsRef.current.onSelect({ lon: m.lon, lat: m.lat });
+        });
+      }
+      return new maplibregl.Marker({ element: el }).setLngLat([m.lon, m.lat]).addTo(map);
+    });
+    return () => placed.forEach((m) => m.remove());
+  }, [markers]);
+
+  // Frame the common area when it changes and no single place is selected.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !commonArea || propsRef.current.point) return;
+    const coords = (commonArea as { coordinates: number[][][][] }).coordinates.flat(2);
+    if (!coords.length) return;
+    const lons = coords.map((c) => c[0]!);
+    const lats = coords.map((c) => c[1]!);
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 64, maxZoom: 15 });
+  }, [commonArea]);
 
   // Fly to points chosen from search results; keep the place panel from covering the point;
   // outline the hexagon the point falls in once the tiles under it are rendered.

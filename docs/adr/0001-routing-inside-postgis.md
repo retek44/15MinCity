@@ -40,4 +40,5 @@ without changes, which is what made the swap safe.
 - pgRouting loads the edge set for each call. On-demand queries limit the edge query to a
   bounding box around the point (computed in EPSG:23700, metres) to stay fast.
 - Turn restrictions and time-dependent public transport are out of scope for pgRouting.
-  Transit routing (RAPTOR over GTFS) is planned as a separate service.
+  Transit routing (RAPTOR over GTFS) runs in the API over an in-memory timetable, and hands the
+  stops it reaches back to pgRouting as seeds: see [ADR 0005](0005-transit-raptor-and-seeded-search.md).

@@ -1,5 +1,6 @@
 import type { AccessResponse, CategoryId } from "../api/client";
 import type { Strings } from "../i18n";
+import { formatAt } from "../when";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -13,11 +14,14 @@ interface Props {
   /** "VI. kerület · Terézváros" when the point lies in a district. */
   district?: string;
   focusCategory?: CategoryId;
+  lang: string;
   onFocusCategory: (category: CategoryId | undefined) => void;
   onClear: () => void;
 }
 
 const LIMIT_SECONDS = 15 * 60;
+/** Categories whose places keep opening hours; "hours unknown" is noise for parks, stops and schools. */
+const HOURS_MATTER = new Set<CategoryId>(["grocery", "pharmacy", "doctor", "food", "gym", "library"]);
 const fmtMinutes = (seconds: number) => Math.max(1, Math.round(seconds / 60));
 
 function CloseButton({ t, onClear }: Pick<Props, "t" | "onClear">) {
@@ -32,7 +36,7 @@ function CloseButton({ t, onClear }: Pick<Props, "t" | "onClear">) {
  * The selected point: the score as a poster numeral, then the minutes behind it, one row per
  * category, nearest first. Pressing a row recolours the map by that category alone.
  */
-export function PlacePanel({ t, access, loading, error, minutes, scoreFor, district, focusCategory, onFocusCategory, onClear }: Props) {
+export function PlacePanel({ t, access, loading, error, minutes, scoreFor, district, focusCategory, lang, onFocusCategory, onClear }: Props) {
   if (error) {
     return (
       <section className="place" role="alert">
@@ -84,6 +88,16 @@ export function PlacePanel({ t, access, loading, error, minutes, scoreFor, distr
         </span>
       </div>
 
+      {access.transit ? (
+        <p className={access.transit.tripsRunning > 0 ? "place-when" : "place-when warn"} data-testid="transit-note">
+          {access.transit.tripsRunning > 0
+            ? t.transitLeaving(formatAt(access.transit.departure, lang), access.transit.stopsReached)
+            : t.noService}
+        </p>
+      ) : (
+        access.at && <p className="place-when">{t.openAt(formatAt(access.at, lang))}</p>
+      )}
+
       <p className="iso-key-title" id="iso-key-title">
         {t.isochrones}
       </p>
@@ -112,7 +126,13 @@ export function PlacePanel({ t, access, loading, error, minutes, scoreFor, distr
               >
                 <span className="meter-name">
                   {t.categories[c.category]}
-                  {c.poi?.name && <span className="meter-poi">{c.poi.name}</span>}
+                  {(c.poi?.name || (access.at && c.poi && HOURS_MATTER.has(c.category))) && (
+                    <span className="meter-poi">
+                      {[c.poi?.name, access.at && c.poi && HOURS_MATTER.has(c.category) ? (c.open ? t.open : t.hoursUnknown) : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
                 </span>
                 <span className="meter-value num">
                   {c.seconds == null ? `${t.unreachable} ${t.min}` : `${fmtMinutes(c.seconds)} ${t.min}`}

@@ -34,6 +34,8 @@ export const options = {
     "http_req_duration{endpoint:isochrone}": ["p(95)<1500"],
     "http_req_duration{endpoint:ranking}": ["p(95)<800"],
     "http_req_duration{endpoint:tile}": ["p(95)<400"],
+    "http_req_duration{endpoint:transit}": ["p(95)<2000"],
+    "http_req_duration{endpoint:common}": ["p(95)<3000"],
   },
 };
 
@@ -75,6 +77,21 @@ export default function () {
     });
     check(iso, { "isochrone 200": (res) => res.status === 200 });
   });
+
+  if (Math.random() < 0.15) {
+    // A weekday morning departure: the timetable for that day is loaded once and cached.
+    const at = "2026-11-24T08:00";
+    const r = http.get(`${BASE}/api/v1/access?lon=${lon}&lat=${lat}&mode=transit&at=${at}`, { tags: { endpoint: "transit" } });
+    check(r, { "transit 200": (res) => res.status === 200 });
+  }
+
+  if (Math.random() < 0.1) {
+    const lon2 = rand(area.west, area.east);
+    const lat2 = rand(area.south, area.north);
+    const places = `${lon},${lat},walk,15;${lon2},${lat2},bike,15`;
+    const r = http.get(`${BASE}/api/v1/common-ground?places=${places}`, { tags: { endpoint: "common" } });
+    check(r, { "common ground 200": (res) => res.status === 200 });
+  }
 
   if (Math.random() < 0.2) {
     const r = http.get(`${BASE}/api/v1/districts/ranking?persona=student&mode=${mode}`, { tags: { endpoint: "ranking" } });

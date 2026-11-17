@@ -13,6 +13,11 @@ Extras, each there to exercise one rule of the import / graph build:
   * POIs: grocery (0,0), pharmacy (9,9), school at 3101, bus stop (0,9),
           cafe on the island (must snap to the grid, 150 m away), park area (3,3)-(5,5)
   * an address node and a district boundary relation around the grid
+  * opening hours: grocery closed on Sundays, pharmacy 24/7, island cafe weekdays only
+
+The GTFS fixture (build_gtfs_fixture) adds one tram line, T1, along the grid's diagonal:
+"Corner" at (0,0) <-> "Far Corner" at (9,9), 3 minutes, every 10 minutes from 06:00 to 21:50,
+on weekdays only, with a service exception on 2026-12-25 (a Friday without trams).
 """
 
 from __future__ import annotations
@@ -98,9 +103,21 @@ def build_grid_fixture() -> str:
     b.node(3101, last * s, (last + 1) * s, {"amenity": "school", "name": "Steps School"})
 
     # POIs
-    b.node(5001, 0, 0, {"shop": "supermarket", "name": "Corner Market"})
-    b.node(5002, last * s, last * s, {"amenity": "pharmacy", "name": "Grid Pharmacy"})
-    b.node(5004, last * s + 150, 5 * s, {"amenity": "cafe", "name": "Island Cafe"})
+    b.node(
+        5001,
+        0,
+        0,
+        {"shop": "supermarket", "name": "Corner Market", "opening_hours": "Mo-Sa 07:00-21:00; Su off"},
+    )
+    b.node(
+        5002, last * s, last * s, {"amenity": "pharmacy", "name": "Grid Pharmacy", "opening_hours": "24/7"}
+    )
+    b.node(
+        5004,
+        last * s + 150,
+        5 * s,
+        {"amenity": "cafe", "name": "Island Cafe", "opening_hours": "Mo-Fr 08:00-18:00"},
+    )
     b.node(5005, last * s, 0, {"highway": "bus_stop", "name": "Grid Stop"})
     b.node(
         5006, 2 * s, 2 * s, {"addr:street": "Andrássy út", "addr:housenumber": "1", "addr:postcode": "1061"}
@@ -137,3 +154,84 @@ def build_grid_fixture() -> str:
         {"type": "boundary", "boundary": "administrative", "admin_level": "9", "name": "Test District"},
     )
     return b.xml()
+
+
+# ---------------------------------------------------------------------------
+# GTFS
+# ---------------------------------------------------------------------------
+
+TRAM_MINUTES = 3
+TRAM_HEADWAY_MINUTES = 10
+TRAM_FIRST, TRAM_LAST = 6 * 60, 21 * 60 + 50
+
+
+def _csv(header: list[str], rows: list[list[object]]) -> str:
+    return "\n".join(",".join(str(v) for v in line) for line in [header, *rows]) + "\n"
+
+
+def _hms(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}:00"
+
+
+def build_gtfs_fixture() -> dict[str, str]:
+    """GTFS tables (file name -> CSV text) for the tram line described in the module docstring."""
+    last = GRID - 1
+    corner = position(0, 0)
+    far = position(last * SPACING_M, last * SPACING_M)
+    stops = [
+        ["corner", "Corner", f"{corner[0]:.8f}", f"{corner[1]:.8f}", 0],
+        ["far", "Far Corner", f"{far[0]:.8f}", f"{far[1]:.8f}", 0],
+    ]
+
+    trips: list[list[object]] = []
+    stop_times: list[list[object]] = []
+    for minute in range(TRAM_FIRST, TRAM_LAST + 1, TRAM_HEADWAY_MINUTES):
+        for direction, (a, b) in enumerate((("corner", "far"), ("far", "corner"))):
+            trip_id = f"T1-{direction}-{_hms(minute)[:5].replace(':', '')}"
+            trips.append(["T1", "WD", trip_id, "Far Corner" if direction == 0 else "Corner", direction])
+            stop_times.append([trip_id, _hms(minute), _hms(minute), a, 1])
+            arrive = _hms(minute + TRAM_MINUTES)
+            stop_times.append([trip_id, arrive, arrive, b, 2])
+
+    return {
+        "agency.txt": _csv(
+            ["agency_id", "agency_name", "agency_url", "agency_timezone"],
+            [["R15", "Reach15 Test Transit", "https://example.org", "Europe/Budapest"]],
+        ),
+        "feed_info.txt": _csv(
+            [
+                "feed_publisher_name",
+                "feed_publisher_url",
+                "feed_lang",
+                "feed_start_date",
+                "feed_end_date",
+                "feed_version",
+            ],
+            [["Reach15", "https://example.org", "en", "20260101", "20301231", "grid-1"]],
+        ),
+        "stops.txt": _csv(["stop_id", "stop_name", "stop_lat", "stop_lon", "location_type"], stops),
+        "routes.txt": _csv(
+            ["route_id", "agency_id", "route_short_name", "route_long_name", "route_type"],
+            [["T1", "R15", "T1", "Diagonal tram", 0]],
+        ),
+        "trips.txt": _csv(["route_id", "service_id", "trip_id", "trip_headsign", "direction_id"], trips),
+        "stop_times.txt": _csv(
+            ["trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence"], stop_times
+        ),
+        "calendar.txt": _csv(
+            [
+                "service_id",
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+                "start_date",
+                "end_date",
+            ],
+            [["WD", 1, 1, 1, 1, 1, 0, 0, "20260101", "20301231"]],
+        ),
+        "calendar_dates.txt": _csv(["service_id", "date", "exception_type"], [["WD", "20261225", 2]]),
+    }

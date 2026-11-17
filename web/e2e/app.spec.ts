@@ -116,3 +116,49 @@ test("has no serious accessibility violations", async ({ page }) => {
   const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(serious.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
 });
+
+test("public transport: the tram reaches the far corner in 3 minutes on a weekday morning", async ({ page }) => {
+  // Tram T1 leaves Corner (vertex 1000) every 10 minutes and reaches Far Corner (1099) in 3.
+  await page.goto(link(GRID.v1000, "&m=transit&t=2026-11-17T08:00"));
+  await expect(page.getByTestId("place-card")).toBeVisible();
+  await expect(page.getByRole("radio", { name: /Transit/ })).toHaveAttribute("aria-checked", "true");
+  await expect.poll(() => minutesFor(page, "pharmacy")).toBe("3 min"); // walking: 18 blocks = 23 min
+  await expect(page.getByTestId("transit-note")).toContainText("Leaving Tue 08:00");
+  await expect(page.getByRole("figure")).toContainText("transit is per place");
+});
+
+test("opening hours: on Sunday the only grocery is closed", async ({ page }) => {
+  await page.goto(link(GRID.v1000));
+  await expect.poll(() => minutesFor(page, "grocery")).toBe("1 min");
+  await page.getByRole("radio", { name: "Pick a time" }).click();
+  await page.getByLabel("Date and time in Budapest").fill("2026-11-22T12:00");
+  await expect(page).toHaveURL(/t=2026-11-22T12:00/);
+  await expect.poll(() => minutesFor(page, "grocery")).toBe("30+ min");
+  await expect(page.getByTestId("category-pharmacy")).toContainText("open");
+});
+
+test("where should we live: two places outline their common ground and list spots", async ({ page }) => {
+  await page.goto(link(GRID.v1044));
+  await expect(page.getByTestId("place-card")).toBeVisible();
+  const panel = page.getByTestId("common-ground");
+  await panel.getByRole("button", { name: "Add the selected point" }).click();
+  await panel.getByLabel("Travel mode to place A").selectOption("walk");
+  await panel.getByLabel("Time limit to place A").selectOption("10");
+
+  await page.getByRole("combobox", { name: "Search" }).fill("andrassy 1");
+  await page.getByRole("option", { name: /^Andrássy út 1 / }).click();
+  await expect(page.getByTestId("place-title")).toHaveText("Andrássy út 1");
+  await panel.getByRole("button", { name: "Add the selected point" }).click();
+  await panel.getByLabel("Travel mode to place B").selectOption("walk");
+  await panel.getByLabel("Time limit to place B").selectOption("10");
+
+  await expect(page).toHaveURL(/a=47\.\d+,19\.\d+,walk,10;47\.\d+,19\.\d+,walk,10/);
+  await expect(panel).toContainText("Common area");
+  await expect.poll(() => sourceFeatures(page, "r15-common")).toBeGreaterThan(0);
+  await expect(page.locator(".map-marker.anchor")).toHaveCount(2);
+
+  const spot = panel.getByTestId("spots").getByRole("button").first();
+  await expect(spot).toContainText(/A \d+ min · B \d+ min/);
+  await spot.click();
+  await expect(page.getByTestId("place-card")).toBeVisible();
+});

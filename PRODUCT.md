@@ -42,13 +42,17 @@ own priorities, across the whole city at once. Data is open (OpenStreetMap) and 
 ## Capabilities and Constraints
 
 - Ten categories: grocery, pharmacy, doctor, school, kindergarten, park, transit, food, gym, library.
-- Two modes: walk and bike. Five personas: balanced, family, student, senior, active; plus custom weights.
+- Three modes: walk, bike and public transport (BKK timetable, RAPTOR; per place only, the heatmap
+  and ranking stay walk/bike). Five personas: balanced, family, student, senior, active; plus custom weights.
 - Score 0–100: per category `clamp(1 - seconds / 900, 0, 1)`, weighted mean. 15 minutes = 0 for that category.
 - Heatmap: H3 resolution-9 hexagons with raw times per category; scoring happens client-side
   in MapLibre style expressions (no new tiles when weights change).
 - District ranking (23 districts), mean cell score with p25/p75.
-- Coverage: Budapest only. No public transport routing yet (transit means walking to a stop).
-  No opening hours. No housing prices or listings.
+- "When?": a local time filters places by OSM opening hours (unknown hours count as open and are
+  labelled) and sets the public transport departure. Public holidays are not modelled.
+- "Where should we live?": up to four places with their own mode and limit; the common area and the
+  best-scoring spots inside.
+- Coverage: Budapest only. No real-time transit, no housing prices or listings.
 - UI languages: English and Hungarian, both complete. Light and dark themes.
 - Stack is fixed: React 19, Vite, MapLibre GL 6, Protomaps basemap, TanStack Query; API types
   generated from `openapi/openapi.json`.
@@ -70,7 +74,7 @@ own priorities, across the whole city at once. Data is open (OpenStreetMap) and 
 1. The map is the answer: the city-wide picture is visible before any interaction.
 2. Times before scores: a score is only trusted when the minutes behind it are one glance away.
 3. The visitor's priorities, not ours: weights are explicit, editable, and shareable.
-4. Honest limits: say clearly what is not modelled (transit timetables, opening hours) and when a point is off the network.
+4. Honest limits: say clearly what is not modelled (holidays, real-time delays, unmapped opening hours) and when a point is off the network.
 
 ## Accessibility & Inclusion
 

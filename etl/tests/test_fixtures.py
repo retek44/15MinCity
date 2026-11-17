@@ -58,3 +58,20 @@ def test_grid_has_expected_size(osm):
     rows_and_cols = [w for w in osm.iter("way") if int(w.get("id")) <= 2 * fixtures.GRID]
     assert len(rows_and_cols) == 2 * fixtures.GRID
     assert all(len(w.findall("nd")) == fixtures.GRID for w in rows_and_cols)
+
+
+def test_committed_gtfs_fixture_is_up_to_date():
+    gtfs_dir = COMMITTED.parents[1] / "gtfs"
+    for name, text in fixtures.build_gtfs_fixture().items():
+        assert (gtfs_dir / name).read_text(encoding="utf-8") == text, (
+            f"tests/fixtures/gtfs/{name} is stale: regenerate it with `python -m reach15_etl.cli fixture "
+            "--out ../tests/fixtures/osm/grid.osm --gtfs-dir ../tests/fixtures/gtfs`"
+        )
+
+
+def test_gtfs_tram_runs_every_ten_minutes_both_ways():
+    feed = fixtures.build_gtfs_fixture()
+    trips = feed["trips.txt"].strip().splitlines()[1:]
+    per_direction = (fixtures.TRAM_LAST - fixtures.TRAM_FIRST) // fixtures.TRAM_HEADWAY_MINUTES + 1
+    assert len(trips) == 2 * per_direction
+    assert "T1-0-0800,08:03:00,08:03:00,far,2" in feed["stop_times.txt"]

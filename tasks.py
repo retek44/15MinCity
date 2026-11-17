@@ -8,9 +8,10 @@
     python tasks.py e2e         fixture DB + production-like containers + Playwright end-to-end tests
     python tasks.py app         run the whole stack in containers (http://localhost:8088)
     python tasks.py download    download Hungary and cut the Budapest extract into ./data
+    python tasks.py gtfs        download the BKK public transport timetable (GTFS) into ./data
     python tasks.py basemap     cut the Budapest basemap (PMTiles) from the Protomaps daily build
     python tasks.py tiles       start the Martin tile server (localhost:3000)
-    python tasks.py pipeline    import ./data/budapest.osm.pbf and precompute everything
+    python tasks.py pipeline    import ./data/budapest.osm.pbf (+ budapest_gtfs.zip) and precompute everything
     python tasks.py api         run the API against the dev database (localhost:8080)
     python tasks.py down        stop the stack (add --volumes to drop the database)
 """
@@ -71,7 +72,7 @@ def test_db() -> None:
     psql("postgres", f"CREATE DATABASE {TEST_DB}")
     migrate(TEST_DB)
     psql(TEST_DB, "CREATE EXTENSION IF NOT EXISTS pgtap")
-    etl(TEST_DB, "run", "/fixtures/osm/grid.osm")
+    etl(TEST_DB, "run", "/fixtures/osm/grid.osm", "--gtfs", "/fixtures/gtfs")
     etl(TEST_DB, "prove", "/db-tests")
     fixture_dump()
 
@@ -100,7 +101,7 @@ def main() -> int:
     p.add_argument(
         "task",
         choices=[
-            "up", "migrate", "test-db", "test-api", "e2e", "download", "basemap", "pipeline", "api", "tiles", "app", "down",
+            "up", "migrate", "test-db", "test-api", "e2e", "download", "gtfs", "basemap", "pipeline", "api", "tiles", "app", "down",
         ],
     )
     p.add_argument("--volumes", action="store_true", help="down: also remove the database volume")
@@ -130,6 +131,8 @@ def main() -> int:
             gradle("bootRun")
         elif args.task == "download":
             etl(DEV_DB, "download")
+        elif args.task == "gtfs":
+            etl(DEV_DB, "gtfs-download")
         elif args.task == "basemap":
             etl(DEV_DB, "basemap")
         elif args.task == "tiles":
@@ -137,7 +140,8 @@ def main() -> int:
         elif args.task == "pipeline":
             up()
             migrate()
-            etl(DEV_DB, "run", "/data/budapest.osm.pbf")
+            gtfs = ["--gtfs", "/data/budapest_gtfs.zip"] if (ROOT / "data" / "budapest_gtfs.zip").exists() else []
+            etl(DEV_DB, "run", "/data/budapest.osm.pbf", *gtfs)
         elif args.task == "down":
             compose("--profile", "tools", "down", *(["--volumes"] if args.volumes else []))
     except subprocess.CalledProcessError as e:

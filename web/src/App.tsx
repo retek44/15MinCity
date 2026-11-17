@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { api, type CategoryId, type DistrictScore, type Mode, type Persona, type Weights } from "./api/client";
+import { type Anchor, api, type CategoryId, type DistrictScore, heatMode, type Mode, type Persona, type Weights } from "./api/client";
+import { CommonGroundPanel, LETTERS } from "./components/CommonGroundPanel";
+import { WhenPicker } from "./components/WhenPicker";
+import { formatAt, resolveWhen, type When } from "./when";
 import { DistrictRoster } from "./components/DistrictRoster";
 import { districtFromPostcode, districtLine } from "./districts";
 import { Icon } from "./components/Icon";
@@ -9,7 +12,7 @@ import { PlacePanel } from "./components/PlacePanel";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { SearchBox } from "./components/SearchBox";
 import { type Lang, strings } from "./i18n";
-import { type DistrictFocus, MapView, type PoiMarker } from "./map/MapView";
+import { type DistrictFocus, type MapMarker, MapView, type PoiMarker } from "./map/MapView";
 import { readUrlState, writeUrlState } from "./urlState";
 
 const MINUTES = [5, 10, 15];
@@ -58,6 +61,12 @@ export function App() {
   const [focusCategory, setFocusCategory] = useState<CategoryId>();
   /** District of the H3 cell under the selected point, reported by the map. */
   const [cellDistrictId, setCellDistrictId] = useState<number | null>();
+  const [when, setWhen] = useState<When>(fromUrl.when ?? "any");
+  const [anchors, setAnchors] = useState<Anchor[]>(fromUrl.anchors ?? []);
+  /** The `at` sent to the API; presets resolve when chosen ("now" stays the time it was picked). */
+  const at = useMemo(() => resolveWhen(when), [when]);
+  /** The heatmap and ranking are precomputed for walking and cycling; transit shows walking there. */
+  const heat = heatMode(mode);
   const t = strings[lang];
 
   useEffect(() => {
@@ -65,7 +74,10 @@ export function App() {
     document.documentElement.lang = lang;
   }, [dark, lang]);
 
-  useEffect(() => writeUrlState({ point, mode, persona: personaId }), [point, mode, personaId]);
+  useEffect(
+    () => writeUrlState({ point, mode, persona: personaId, when, anchors }),
+    [point, mode, personaId, when, anchors],
+  );
 
   const personas = useQuery({ queryKey: ["personas"], queryFn: api.personas, staleTime: Infinity });
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta, staleTime: Infinity });
@@ -86,6 +98,7 @@ export function App() {
   const heatWeights: Weights = useMemo(() => (focusCategory ? { [focusCategory]: 1 } : weights), [focusCategory, weights]);
   const profileName = personaId === "custom" ? t.customProfile : (t.personas[personaId] ?? persona?.label ?? personaId);
   const modeName = t.modeName[mode];
+  const whenName = at ? ` · ${formatAt(at, lang)}` : "";
 
   const choosePersona = (p: Persona) => {
     setPersonaId(p.id);
@@ -93,23 +106,53 @@ export function App() {
   };
 
   const access = useQuery({
-    queryKey: ["access", point?.lon, point?.lat, mode, weights],
-    queryFn: () => api.access(point!.lon, point!.lat, mode, weights),
+    queryKey: ["access", point?.lon, point?.lat, mode, weights, at],
+    queryFn: () => api.access(point!.lon, point!.lat, mode, weights, at),
     enabled: Boolean(point),
     placeholderData: (previous) => previous,
     retry: false,
   });
   const isochrone = useQuery({
-    queryKey: ["isochrone", point?.lon, point?.lat, mode],
-    queryFn: () => api.isochrone(point!.lon, point!.lat, mode, MINUTES),
+    // Only the timetable depends on the time; walking and cycling isochrones are shared.
+    queryKey: ["isochrone", point?.lon, point?.lat, mode, mode === "transit" ? at : undefined],
+    queryFn: () => api.isochrone(point!.lon, point!.lat, mode, MINUTES, mode === "transit" ? at : undefined),
     enabled: Boolean(point),
     retry: false,
   });
   const ranking = useQuery({
-    queryKey: ["ranking", mode, weights],
-    queryFn: () => api.ranking(mode, weights),
+    queryKey: ["ranking", heat, weights],
+    queryFn: () => api.ranking(heat, weights),
     placeholderData: (previous) => previous,
   });
+  const anchorKey = anchors.map(({ lon, lat, mode: m, minutes }) => [lon, lat, m, minutes]);
+  const common = useQuery({
+    queryKey: ["common", anchorKey, heat, weights, at],
+    queryFn: () => api.commonGround(anchors, heat, weights, at),
+    enabled: anchors.length > 0,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+  const commonData = anchors.length > 0 ? common.data : undefined;
+
+  const markers: MapMarker[] = useMemo(
+    () => [
+      ...anchors.map((a, i) => ({
+        lon: a.lon,
+        lat: a.lat,
+        text: LETTERS[i]!,
+        kind: "anchor" as const,
+        title: a.label ?? t.placeLabel(LETTERS[i]!),
+      })),
+      ...(commonData?.spots ?? []).map((s, n) => ({
+        lon: s.lon,
+        lat: s.lat,
+        text: String(n + 1),
+        kind: "spot" as const,
+        title: t.showSpot(n + 1),
+      })),
+    ],
+    [anchors, commonData, t],
+  );
 
   const pois: PoiMarker[] = useMemo(
     () =>
@@ -193,6 +236,8 @@ export function App() {
           }}
         />
 
+        <WhenPicker t={t} when={when} onWhen={setWhen} />
+
         {focusCategory && (
           <p className="focus-note">
             <span>
@@ -203,6 +248,17 @@ export function App() {
             </button>
           </p>
         )}
+
+        <CommonGroundPanel
+          t={t}
+          anchors={anchors}
+          onAnchors={setAnchors}
+          candidate={point && { lon: point.lon, lat: point.lat, label: access.data?.address?.label }}
+          result={commonData}
+          loading={common.isFetching}
+          error={anchors.length > 0 ? common.error?.message : undefined}
+          onSpot={(p) => setPoint({ ...p, fly: true })}
+        />
 
         <DistrictRoster
           t={t}
@@ -217,7 +273,7 @@ export function App() {
 
       <main className={point ? "stage has-place" : "stage"}>
         <MapView
-          mode={mode}
+          mode={heat}
           weights={heatWeights}
           dark={dark}
           lang={lang}
@@ -225,13 +281,21 @@ export function App() {
           point={point}
           isochrones={point && !isochrone.isError ? isochrone.data : undefined}
           pois={point ? pois : []}
+          commonArea={commonData?.area as GeoJSON.Geometry | null | undefined}
+          markers={markers}
           focusDistrict={districtFocus}
           scoreLabel={focusCategory ? t.categories[focusCategory] : t.score}
           onSelect={(p) => setPoint(p)}
           onCell={(cell) => setCellDistrictId(cell?.districtId ?? null)}
         />
         <Legend
-          title={focusCategory ? t.legendFocus(t.categories[focusCategory], modeName) : t.legendTitle(modeName, profileName)}
+          title={
+            focusCategory
+              ? t.legendFocus(t.categories[focusCategory], t.modeName[heat])
+              : mode === "transit"
+                ? t.legendTransit(profileName)
+                : t.legendTitle(modeName, profileName)
+          }
           dark={dark}
           low={t.legendLow}
           high={t.legendHigh}
@@ -243,7 +307,8 @@ export function App() {
             loading={access.isFetching || isochrone.isFetching}
             error={error}
             minutes={MINUTES}
-            scoreFor={t.scoreFor(modeName, profileName)}
+            scoreFor={t.scoreFor(modeName, profileName) + whenName}
+            lang={lang}
             district={placeDistrict ? districtLine(placeDistrict) : undefined}
             focusCategory={focusCategory}
             onFocusCategory={setFocusCategory}

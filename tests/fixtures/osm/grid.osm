@@ -105,9 +105,9 @@
   <node id="3001" version="1" lat="47.50449719" lon="19.06393616"/>
   <node id="3002" version="1" lat="47.50449719" lon="19.06526341"/>
   <node id="3101" version="1" lat="47.50899438" lon="19.06194528"><tag k="amenity" v="school"/><tag k="name" v="Steps School"/></node>
-  <node id="5001" version="1" lat="47.50000000" lon="19.05000000"><tag k="shop" v="supermarket"/><tag k="name" v="Corner Market"/></node>
-  <node id="5002" version="1" lat="47.50809494" lon="19.06194528"><tag k="amenity" v="pharmacy"/><tag k="name" v="Grid Pharmacy"/></node>
-  <node id="5004" version="1" lat="47.50449719" lon="19.06393616"><tag k="amenity" v="cafe"/><tag k="name" v="Island Cafe"/></node>
+  <node id="5001" version="1" lat="47.50000000" lon="19.05000000"><tag k="shop" v="supermarket"/><tag k="name" v="Corner Market"/><tag k="opening_hours" v="Mo-Sa 07:00-21:00; Su off"/></node>
+  <node id="5002" version="1" lat="47.50809494" lon="19.06194528"><tag k="amenity" v="pharmacy"/><tag k="name" v="Grid Pharmacy"/><tag k="opening_hours" v="24/7"/></node>
+  <node id="5004" version="1" lat="47.50449719" lon="19.06393616"><tag k="amenity" v="cafe"/><tag k="name" v="Island Cafe"/><tag k="opening_hours" v="Mo-Fr 08:00-18:00"/></node>
   <node id="5005" version="1" lat="47.50000000" lon="19.06194528"><tag k="highway" v="bus_stop"/><tag k="name" v="Grid Stop"/></node>
   <node id="5006" version="1" lat="47.50179888" lon="19.05265451"><tag k="addr:street" v="Andrássy út"/><tag k="addr:housenumber" v="1"/><tag k="addr:postcode" v="1061"/></node>
   <node id="6001" version="1" lat="47.50269831" lon="19.05398176"/>

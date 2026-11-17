@@ -2,11 +2,17 @@ package hu.reach15.api.domain
 
 import com.fasterxml.jackson.annotation.JsonValue
 
-/** Travel modes; [id] is the value used in URLs, JSON and the database. */
+/**
+ * Travel modes; [id] is the value used in URLs, JSON and the database. Walking and cycling are
+ * precomputed for the whole city (heatmap, ranking); public transport is searched on demand.
+ */
 enum class Mode(@get:JsonValue val id: String) {
     WALK("walk"),
     BIKE("bike"),
+    TRANSIT("transit"),
     ;
+
+    val precomputed: Boolean get() = this != TRANSIT
 
     companion object {
         fun parse(value: String): Mode =

@@ -23,12 +23,14 @@ from pathlib import Path
 import psycopg
 from psycopg.types.json import Jsonb
 
-from . import drift, quality
-from .fixtures import build_grid_fixture
+from . import drift, gtfs, hours, quality
+from .fixtures import build_grid_fixture, build_gtfs_fixture
 
 log = logging.getLogger("reach15")
 
 HUNGARY_URL = "https://download.geofabrik.de/europe/hungary-latest.osm.pbf"
+# BKK (Budapest public transport) static GTFS feed, open data, refreshed daily.
+BKK_GTFS_URL = "https://go.bkk.hu/api/static/v1/public-gtfs/budapest_gtfs.zip"
 PROTOMAPS_BUILD = "https://build.protomaps.com/{date}.pmtiles"
 USER_AGENT = "reach15-etl/0.1 (+https://github.com/)"
 # Budapest city limits plus ~1 km margin, so isochrones near the border are not cut off.
@@ -87,6 +89,44 @@ def latest_protomaps_build(today: datetime.date | None = None, days: int = 7) ->
     raise SystemExit(f"no Protomaps build found in the last {days} days")
 
 
+def cmd_gtfs_download(args: argparse.Namespace) -> int:
+    target = Path(args.data_dir) / "budapest_gtfs.zip"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    log.info("downloading %s", args.url)
+    request = urllib.request.Request(args.url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=120) as response, target.open("wb") as out:
+        while chunk := response.read(1 << 20):
+            out.write(chunk)
+    log.info("feed written to %s (%.1f MB)", target, target.stat().st_size / 1e6)
+    return 0
+
+
+def cmd_gtfs(args: argparse.Namespace) -> int:
+    start = time.perf_counter()
+    with connect() as conn:
+        counts = gtfs.load(conn, args.feed)
+    log.info("GTFS %s imported in %.1fs: %s", args.feed, time.perf_counter() - start, counts)
+    return 0
+
+
+def load_opening_hours(conn: psycopg.Connection) -> dict[str, int]:
+    """Parses osm.pois.opening_hours into analytics.poi_hours (minutes of the week)."""
+    known = unsupported = 0
+    with conn.cursor() as read, conn.cursor() as write:
+        write.execute("TRUNCATE analytics.poi_hours")
+        read.execute("SELECT osm_type, osm_id, opening_hours FROM osm.pois WHERE opening_hours IS NOT NULL")
+        rows = read.fetchall()
+        with write.copy("COPY analytics.poi_hours (poi_type, poi_id, open_minutes) FROM STDIN") as copy:
+            for osm_type, osm_id, value in rows:
+                intervals = hours.parse(value)
+                if intervals is None:
+                    unsupported += 1
+                    continue
+                copy.write_row((osm_type, osm_id, hours.multirange(intervals)))
+                known += 1
+    return {"known": known, "unsupported": unsupported}
+
+
 def cmd_basemap(args: argparse.Namespace) -> int:
     source = args.source or latest_protomaps_build()
     target = Path(args.data_dir) / "budapest-basemap.pmtiles"
@@ -143,6 +183,10 @@ def cmd_build(args: argparse.Namespace) -> int:
 
         graph = timed(timings, "build_graph", lambda: scalar("SELECT * FROM routing.build_graph()"))
         timed(timings, "snap_sources", lambda: scalar("SELECT routing.snap_sources()")[0])
+        opening = timed(timings, "opening_hours", lambda: load_opening_hours(conn))
+        if scalar("SELECT EXISTS (SELECT 1 FROM transit.stops)")[0]:
+            timed(timings, "transit_snap_stops", lambda: scalar("SELECT transit.snap_stops()")[0])
+            timed(timings, "transit_transfers", lambda: scalar("SELECT transit.build_transfers()")[0])
         for mode in modes:
             timed(
                 timings,
@@ -156,7 +200,10 @@ def cmd_build(args: argparse.Namespace) -> int:
         )
         timed(timings, "search_index", lambda: scalar("SELECT search.build_index()")[0])
 
-        report = quality.collect(conn, extra={"skipped_ways": graph[2]})
+        report = quality.collect(
+            conn,
+            extra={"skipped_ways": graph[2], "opening_hours_unsupported": opening["unsupported"]},
+        )
         conn.execute(
             """
             UPDATE meta.data_release
@@ -185,13 +232,23 @@ def cmd_drift(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    return cmd_import(args) or cmd_build(args)
+    if cmd_import(args):
+        return 1
+    if args.gtfs:
+        cmd_gtfs(argparse.Namespace(feed=args.gtfs))
+    return cmd_build(args)
 
 
 def cmd_fixture(args: argparse.Namespace) -> int:
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(build_grid_fixture(), encoding="utf-8", newline="\n")
     log.info("fixture written to %s", args.out)
+    if args.gtfs_dir:
+        out = Path(args.gtfs_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        for name, text in build_gtfs_fixture().items():
+            (out / name).write_text(text, encoding="utf-8", newline="\n")
+        log.info("GTFS fixture written to %s", out)
     return 0
 
 
@@ -223,6 +280,15 @@ def parser() -> argparse.ArgumentParser:
     m.add_argument("--source", help="PMTiles URL or path (default: newest daily build)")
     m.set_defaults(fn=cmd_basemap)
 
+    gd = sub.add_parser("gtfs-download", help="download the BKK GTFS feed into the data directory")
+    gd.add_argument("--data-dir", default="/data")
+    gd.add_argument("--url", default=BKK_GTFS_URL)
+    gd.set_defaults(fn=cmd_gtfs_download)
+
+    g = sub.add_parser("gtfs", help="import a GTFS feed (zip or directory) into the transit schema")
+    g.add_argument("feed")
+    g.set_defaults(fn=cmd_gtfs)
+
     def add_build_args(sp: argparse.ArgumentParser) -> None:
         sp.add_argument("--modes", default="walk,bike", help="comma separated: walk,bike")
         sp.add_argument("--h3-resolution", type=int, default=9)
@@ -237,6 +303,7 @@ def parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("run", help="import + build")
     r.add_argument("file")
+    r.add_argument("--gtfs", help="also import this GTFS feed (zip or directory) before the build")
     add_build_args(r)
     r.set_defaults(fn=cmd_run)
 
@@ -248,6 +315,7 @@ def parser() -> argparse.ArgumentParser:
 
     f = sub.add_parser("fixture", help="write the synthetic grid fixture")
     f.add_argument("--out", required=True)
+    f.add_argument("--gtfs-dir", help="also write the GTFS fixture into this directory")
     f.set_defaults(fn=cmd_fixture)
 
     t = sub.add_parser("prove", help="run pgTAP tests with pg_prove")

@@ -1,0 +1,190 @@
+name: Preview
+
+# Per-pull-request preview environments at https://pr-<n>.<PREVIEW_DOMAIN> (ADR 0006):
+#   images tagged pr-<n> on GHCR -> preview host: own database built with the PR's migrations and
+#   ETL from the cached Budapest extract, own API/web/tiles behind the edge Caddy
+#   (deploy/preview.sh) -> smoke -> one sticky PR comment with the URL.
+# Closing the PR tears the preview down; a daily job prunes stale and orphaned previews.
+#
+# Only runs when PREVIEW_HOST is configured and for branches of this repository: pull requests
+# from forks get no secrets, so they get no preview.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  schedule:
+    - cron: "41 4 * * *" # daily prune
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number || 'prune' }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  REGISTRY: ghcr.io/${{ github.repository_owner }}/reach15
+  PR: ${{ github.event.pull_request.number }}
+  PREVIEWS_DIR: /opt/reach15-previews
+
+jobs:
+  images:
+    name: Image · ${{ matrix.image }}
+    if: >-
+      github.event_name == 'pull_request' && github.event.action != 'closed' &&
+      vars.PREVIEW_HOST != '' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        image: [api, web, etl]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:pr-${{ env.PR }}
+          labels: |
+            org.opencontainers.image.title=reach15-${{ matrix.image }}
+            org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    name: Deploy · preview
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    environment:
+      name: preview
+      url: https://pr-${{ github.event.pull_request.number }}.${{ vars.PREVIEW_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and start the preview
+        uses: ./.github/actions/ssh-deploy
+        with:
+          host: ${{ vars.PREVIEW_HOST }}
+          user: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.PREVIEW_SSH_KEY }}
+          known-hosts: ${{ secrets.PREVIEW_KNOWN_HOSTS }}
+          # Own shallow checkout per PR; /opt/reach15 (core stack, staging) is only read.
+          script: |
+            dir=${{ env.PREVIEWS_DIR }}/pr-${{ env.PR }}
+            mkdir -p ${{ env.PREVIEWS_DIR }}
+            if [ ! -d "$dir/.git" ]; then
+              git init --quiet "$dir"
+              git -C "$dir" remote add origin "$(git -C /opt/reach15 remote get-url origin)"
+            fi
+            git -C "$dir" fetch --quiet --depth 1 origin ${{ github.event.pull_request.head.sha }}
+            git -C "$dir" checkout --quiet --force --detach FETCH_HEAD
+            TAG=pr-${{ env.PR }} REGISTRY=${{ env.REGISTRY }} PREVIEW_DOMAIN=${{ vars.PREVIEW_DOMAIN }} \
+              bash "$dir/deploy/preview.sh" up ${{ env.PR }}
+      - name: Smoke test through the edge (TLS, routing)
+        run: |
+          base=https://pr-$PR.${{ vars.PREVIEW_DOMAIN }}
+          curl -fsS --retry 10 --retry-all-errors --retry-delay 5 "$base/healthz" > /dev/null
+          curl -fsS "$base/api/v1/meta" | grep -q '"status":"succeeded"'
+
+  teardown:
+    name: Teardown · preview
+    if: >-
+      github.event_name == 'pull_request' && github.event.action == 'closed' &&
+      vars.PREVIEW_HOST != '' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    environment: preview
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/ssh-deploy
+        with:
+          host: ${{ vars.PREVIEW_HOST }}
+          user: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.PREVIEW_SSH_KEY }}
+          known-hosts: ${{ secrets.PREVIEW_KNOWN_HOSTS }}
+          # Prefer main's script (staging checkout); fall back to the PR's own copy.
+          script: |
+            script=/opt/reach15/deploy/preview.sh
+            [ -f "$script" ] || script=${{ env.PREVIEWS_DIR }}/pr-${{ env.PR }}/deploy/preview.sh
+            if [ -f "$script" ]; then bash "$script" down ${{ env.PR }}; else echo "no preview to remove"; fi
+
+  comment:
+    name: PR comment
+    needs: [images, deploy, teardown]
+    if: >-
+      always() && github.event_name == 'pull_request' &&
+      vars.PREVIEW_HOST != '' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Create or update the sticky preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULTS: ${{ needs.images.result }} ${{ needs.deploy.result }} ${{ needs.teardown.result }}
+          DEPLOY: ${{ needs.deploy.result }}
+          TEARDOWN: ${{ needs.teardown.result }}
+          URL: https://pr-${{ github.event.pull_request.number }}.${{ vars.PREVIEW_DOMAIN }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # A newer push cancelled this run: that run will write the comment.
+          [[ " $RESULTS " == *" cancelled "* ]] && exit 0
+          marker='<!-- reach15-preview -->'
+          if [[ $TEARDOWN == success ]]; then
+            status="Preview removed (pull request closed)."
+          elif [[ $DEPLOY == success ]]; then
+            status="Preview of \`${SHA::7}\` is ready: $URL"$'\n\n'"Own database built with this PR's migrations and ETL on the Budapest extract."
+          else
+            status="Preview of \`${SHA::7}\` failed, see [the workflow run]($RUN)."
+          fi
+          body="$marker"$'\n'"### Preview environment"$'\n\n'"$status"
+          id=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [[ -n $id ]]; then
+            gh api --method PATCH "repos/$GH_REPO/issues/comments/$id" -f body="$body" > /dev/null
+          elif [[ $TEARDOWN != success ]]; then
+            gh pr comment "$PR" --body "$body"
+          fi
+
+  prune:
+    name: Prune · previews
+    if: github.event_name == 'schedule' && vars.PREVIEW_HOST != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    environment: preview
+    steps:
+      - uses: actions/checkout@v5
+      - id: open
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json number --jq '[.[].number] | join(" ")')
+          echo "prs=$prs" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/ssh-deploy
+        with:
+          host: ${{ vars.PREVIEW_HOST }}
+          user: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.PREVIEW_SSH_KEY }}
+          known-hosts: ${{ secrets.PREVIEW_KNOWN_HOSTS }}
+          script: |
+            [ -f /opt/reach15/deploy/preview.sh ] || { echo "preview tooling not deployed yet"; exit 0; }
+            bash /opt/reach15/deploy/preview.sh prune ${{ vars.PREVIEW_MAX_AGE_DAYS || 7 }} --open ${{ steps.open.outputs.prs }}
+            bash /opt/reach15/deploy/preview.sh list

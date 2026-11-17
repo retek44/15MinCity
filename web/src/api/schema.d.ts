@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/common-ground": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where should we live? The area from which every place can be reached in its own limit
+         * @description Each place is lon,lat,mode,minutes (mode walk, bike or transit; 1..45 minutes), separated by semicolons, e.g. 19.0402,47.4979,transit,30;19.0700,47.5100,bike,15. Times are from home to the place (by public transport: from the place, leaving at `at`). Spots are the best-scoring hexagons inside.
+         */
+        get: operations["commonGround"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/districts/ranking": {
         parameters: {
             query?: never;
@@ -146,19 +166,37 @@ export interface components {
     schemas: {
         AccessResponse: {
             address?: components["schemas"]["ReverseResult"] | null;
+            /**
+             * Format: date-time
+             * @description Local time (Europe/Budapest) whose opening hours were applied; null when none was requested
+             */
+            at?: string | null;
             categories: components["schemas"]["CategoryAccess"][];
             /** @enum {string} */
-            mode: "walk" | "bike";
+            mode: "walk" | "bike" | "transit";
             point: components["schemas"]["LonLat"];
             /**
              * Format: double
              * @description Weighted accessibility score, 0..100
              */
             score: number;
+            transit?: components["schemas"]["TransitSummary"] | null;
+        };
+        Anchor: {
+            /** Format: double */
+            lat: number;
+            /** Format: double */
+            lon: number;
+            /** Format: int32 */
+            minutes: number;
+            /** @enum {string} */
+            mode: "walk" | "bike" | "transit";
         };
         CategoryAccess: {
             /** @enum {string} */
             category: "grocery" | "pharmacy" | "doctor" | "school" | "kindergarten" | "park" | "transit" | "food" | "gym" | "library";
+            /** @description Whether the place is open at the requested time; null when no time was given or its hours are unknown */
+            open?: boolean | null;
             poi?: components["schemas"]["Poi"] | null;
             /**
              * Format: double
@@ -176,6 +214,17 @@ export interface components {
         CategoryDto: {
             id: string;
             label: string;
+        };
+        CommonGroundResponse: {
+            anchors: components["schemas"]["Anchor"][];
+            /** @description GeoJSON MultiPolygon (WGS84) from which every place is reachable in its limit; null if none */
+            area?: components["schemas"]["JsonNode"] | null;
+            /** Format: double */
+            areaM2: number;
+            /** Format: date-time */
+            at?: string | null;
+            /** @description Best-scoring spots inside the area, spread out, best first */
+            spots: components["schemas"]["Spot"][];
         };
         DataRelease: {
             /** Format: date-time */
@@ -259,6 +308,8 @@ export interface components {
             /** Format: double */
             lon: number;
             name?: string | null;
+            /** @description OSM opening_hours tag as mapped, if any */
+            openingHours?: string | null;
         };
         ReverseResult: {
             /** Format: double */
@@ -280,6 +331,34 @@ export interface components {
             lon: number;
             sublabel?: string | null;
         };
+        Spot: {
+            address?: components["schemas"]["ReverseResult"] | null;
+            /** Format: double */
+            lat: number;
+            /** Format: double */
+            lon: number;
+            /**
+             * Format: double
+             * @description Accessibility score of the spot's hexagon for the requested profile, 0..100
+             */
+            score: number;
+            /** @description Travel time to each place, in the order of the request, seconds */
+            seconds: number[];
+        };
+        TransitSummary: {
+            /** Format: date-time */
+            departure: string;
+            /**
+             * Format: int32
+             * @description Stops reached within the time budget, on foot or by public transport
+             */
+            stopsReached: number;
+            /**
+             * Format: int32
+             * @description Trips running on the service day; 0 means no timetable for that day
+             */
+            tripsRunning: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -298,6 +377,8 @@ export interface operations {
                 persona?: string;
                 /** @description Custom weights, e.g. grocery:3,park:1 (overrides persona) */
                 weights?: string;
+                /** @description Local time in Budapest, e.g. 2026-11-22T20:00: only places open then count (unknown hours count as open), and public transport departs then (default: now) */
+                at?: string;
             };
             header?: never;
             path?: never;
@@ -336,6 +417,34 @@ export interface operations {
             };
         };
     };
+    commonGround: {
+        parameters: {
+            query: {
+                places: string;
+                /** @description Travel mode the spots are scored for (walk or bike) */
+                mode?: string;
+                persona?: string;
+                weights?: string;
+                at?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGroundResponse"];
+                };
+            };
+        };
+    };
     districtRanking: {
         parameters: {
             query?: {
@@ -368,6 +477,8 @@ export interface operations {
                 mode?: string;
                 /** @description Comma separated limits in minutes, each 1..30 */
                 minutes?: number[];
+                /** @description Departure by public transport, local time in Budapest (default: now) */
+                at?: string;
             };
             header?: never;
             path?: never;
