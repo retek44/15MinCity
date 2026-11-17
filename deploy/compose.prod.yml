@@ -1,0 +1,43 @@
+# Production overlay for one application "colour" (blue or green), used by deploy/bluegreen.sh:
+#
+#   docker compose -p reach15-green -f deploy/compose.prod.yml up -d
+#
+# Shared, long-lived services (database, tiles) run in the "reach15-core" project; each colour
+# brings its own API + web container on a colour-specific local port. The edge proxy
+# (deploy/edge.Caddyfile) sends traffic to exactly one colour at a time.
+name: reach15-${COLOR:?COLOR must be blue or green}
+
+services:
+  api:
+    image: ${REGISTRY:?}/api:${TAG:?}
+    restart: unless-stopped
+    environment:
+      REACH15_DB_URL: jdbc:postgresql://db:5432/reach15
+      REACH15_DB_USER: ${POSTGRES_USER:?}
+      REACH15_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60
+    networks: [core]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q UP <&3'"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  web:
+    image: ${REGISTRY:?}/web:${TAG:?}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: api:8080
+      TILES_UPSTREAM: martin:3000
+    networks: [core]
+    ports:
+      - "127.0.0.1:${PORT:?}:80"
+
+networks:
+  core:
+    # default network of the core stack (docker compose -p reach15-core up -d db martin)
+    name: reach15-core_default
+    external: true

@@ -1,0 +1,28 @@
+<testsuites id="" name="" tests="11" failures="0" skipped="0" errors="0" time="16.478870999999998">
+<testsuite name="app.spec.ts" timestamp="2026-11-17T18:09:14.759Z" hostname="desktop" tests="10" failures="0" skipped="0" time="103.731" errors="0">
+<testcase name="loads the map with the accessibility heatmap @mobile" classname="app.spec.ts" time="11.74">
+</testcase>
+<testcase name="search, pick a result, see score, nearest places and isochrones" classname="app.spec.ts" time="12.08">
+</testcase>
+<testcase name="keyboard-only search" classname="app.spec.ts" time="12.564">
+</testcase>
+<testcase name="shared link restores the point and travel mode; bike respects oneway streets" classname="app.spec.ts" time="12.285">
+</testcase>
+<testcase name="changing the profile re-scores the heatmap without new tiles" classname="app.spec.ts" time="11.702">
+</testcase>
+<testcase name="points away from the street network show a helpful error" classname="app.spec.ts" time="12.519">
+</testcase>
+<testcase name="district roster is the first view; focusing a district fades the rest of the city" classname="app.spec.ts" time="11.708">
+</testcase>
+<testcase name="focusing a category recolours the map by that category alone" classname="app.spec.ts" time="13.78">
+</testcase>
+<testcase name="switches language and theme" classname="app.spec.ts" time="2.143">
+</testcase>
+<testcase name="has no serious accessibility violations" classname="app.spec.ts" time="3.21">
+</testcase>
+</testsuite>
+<testsuite name="app.spec.ts" timestamp="2026-11-17T18:09:14.759Z" hostname="mobile" tests="1" failures="0" skipped="0" time="1.265" errors="0">
+<testcase name="loads the map with the accessibility heatmap @mobile" classname="app.spec.ts" time="1.265">
+</testcase>
+</testsuite>
+</testsuites>

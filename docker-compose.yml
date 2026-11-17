@@ -1,0 +1,106 @@
+name: reach15
+
+# Local development stack. Credentials are local-only defaults; override them in `.env`.
+x-db-env: &db-env
+  PGHOST: db
+  PGUSER: ${POSTGRES_USER:-reach15}
+  PGPASSWORD: ${POSTGRES_PASSWORD:-reach15}
+  PGDATABASE: ${DB_NAME:-reach15}
+
+services:
+  db:
+    build: ./db
+    environment:
+      POSTGRES_DB: reach15
+      POSTGRES_USER: ${POSTGRES_USER:-reach15}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reach15}
+    command: >
+      postgres
+        -c shared_buffers=512MB
+        -c work_mem=64MB
+        -c maintenance_work_mem=512MB
+        -c max_wal_size=2GB
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d reach15"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  martin:
+    image: ghcr.io/maplibre/martin:${MARTIN_VERSION:-1.16.1}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      REACH15_TILES_DB: postgres://${POSTGRES_USER:-reach15}:${POSTGRES_PASSWORD:-reach15}@db:5432/${APP_DB:-reach15}
+    # martin.e2e.yaml: no basemap (tests run against the synthetic fixture database)
+    command: ["--config", "/config/${MARTIN_CONFIG:-martin.yaml}"]
+    ports:
+      - "${TILES_PORT:-3000}:3000"
+    volumes:
+      - ./tiles:/config:ro
+      - ./data:/data:ro
+
+  # Production-like application stack: python tasks.py app (APP_DB selects the database).
+  api:
+    build: ./api
+    image: ${REGISTRY:-reach15}/api:${TAG:-local}
+    profiles: [app]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      REACH15_DB_URL: jdbc:postgresql://db:5432/${APP_DB:-reach15}
+      REACH15_DB_USER: ${POSTGRES_USER:-reach15}
+      REACH15_DB_PASSWORD: ${POSTGRES_PASSWORD:-reach15}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q UP <&3'"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  web:
+    build: ./web
+    image: ${REGISTRY:-reach15}/web:${TAG:-local}
+    profiles: [app]
+    depends_on:
+      api:
+        condition: service_healthy
+      martin:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-8088}:80"
+
+  flyway:
+    image: flyway/flyway:11
+    profiles: [tools]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${DB_NAME:-reach15}
+      FLYWAY_USER: ${POSTGRES_USER:-reach15}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-reach15}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./db/migrations:/flyway/sql:ro
+    command: migrate
+
+  etl:
+    build: ./etl
+    profiles: [tools]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *db-env
+    volumes:
+      - ./data:/data
+      - ./tests/fixtures:/fixtures:ro
+      - ./db/tests:/db-tests:ro
+
+volumes:
+  pgdata:

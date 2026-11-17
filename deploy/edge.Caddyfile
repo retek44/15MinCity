@@ -1,0 +1,11 @@
+# Edge proxy on the host: TLS termination + the blue/green switch.
+# bluegreen.sh rewrites /etc/caddy/upstream.caddy and reloads Caddy (no dropped connections).
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	import /etc/caddy/upstream.caddy
+}

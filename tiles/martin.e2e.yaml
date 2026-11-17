@@ -1,0 +1,14 @@
+# Martin for end-to-end tests: H3 tiles only, no basemap (the web app falls back to a plain background).
+listen_addresses: "0.0.0.0:3000"
+cache_size_mb: 256
+
+postgres:
+  connection_string: ${REACH15_TILES_DB}
+  auto_publish: false
+  functions:
+    h3:
+      schema: analytics
+      function: h3_tiles
+      minzoom: 9
+      maxzoom: 16
+      bounds: [18.91, 47.34, 19.35, 47.62]

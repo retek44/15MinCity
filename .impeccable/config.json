@@ -1,0 +1,19 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      ".impeccable/mocks/**"
+    ],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "web/playwright-report/trace/defaultSettingsView.C8BeHuxd.css"
+        ],
+        "createdAt": "2026-11-17T17:12:38.502Z",
+        "reason": "Claude: vendored Playwright HTML-report CSS, generated test output, not app UI"
+      }
+    ]
+  }
+}

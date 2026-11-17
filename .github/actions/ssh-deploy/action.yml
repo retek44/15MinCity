@@ -1,0 +1,46 @@
+name: SSH deploy
+description: Run a script on a deploy host over SSH with a pinned host key (no TOFU).
+
+inputs:
+  host:
+    description: Host name of the deploy target
+    required: true
+  user:
+    description: SSH user (needs docker group membership and write access to the Caddy upstream file)
+    required: true
+  key:
+    description: Private key (ed25519), from an environment secret
+    required: true
+  known-hosts:
+    description: known_hosts line(s) for the host, from an environment secret
+    required: true
+  script:
+    description: Bash script to run on the host (runs with `set -euo pipefail`)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Configure SSH
+      shell: bash
+      env:
+        KEY: ${{ inputs.key }}
+        KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        install -d -m 700 ~/.ssh
+        printf '%s\n' "$KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+        printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - name: Run remote script
+      shell: bash
+      env:
+        HOST: ${{ inputs.host }}
+        DEPLOY_USER: ${{ inputs.user }}
+        SCRIPT: ${{ inputs.script }}
+      run: |
+        printf 'set -euo pipefail\n%s\n' "$SCRIPT" | ssh -i ~/.ssh/deploy_key \
+          -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 \
+          "$DEPLOY_USER@$HOST" bash -s
+    - name: Remove key
+      if: always()
+      shell: bash
+      run: rm -f ~/.ssh/deploy_key

@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T12:00:00Z",
+  "title": "Design System: Reach15",
+  "extensions": {
+    "colorMeta": {
+      "ultramarine": { "role": "primary", "displayName": "Rail Ultramarine", "canonical": "#1f35a5", "tonalRamp": ["#0f1a5e", "#172984", "#1a2a8a", "#3a51b8", "#6c7fd2", "#a9b4e6", "#c9d0f0", "#dfe3f5"] },
+      "ultramarine-deep": { "role": "primary", "displayName": "Deep Ultramarine", "canonical": "#172984", "tonalRamp": ["#0b1446", "#0f1a5e", "#172984", "#1f35a5", "#3a51b8", "#6c7fd2", "#a9b4e6", "#dfe3f5"] },
+      "ultramarine-dark": { "role": "primary", "displayName": "Night Rail Ultramarine", "canonical": "#16247a", "tonalRamp": ["#0b1446", "#0f1a5e", "#16247a", "#2d43a0", "#4a68d8", "#8ca3f2", "#b9c2ec", "#d6deff"] },
+      "ultramarine-deep-dark": { "role": "primary", "displayName": "Night Deep Ultramarine", "canonical": "#0f1a5e", "tonalRamp": ["#070e33", "#0b1446", "#0f1a5e", "#16247a", "#2d43a0", "#4a68d8", "#8ca3f2", "#d6deff"] },
+      "ultramarine-text-dark": { "role": "primary", "displayName": "Night Ultramarine Text", "canonical": "#8ba2f0", "tonalRamp": ["#1d2758", "#2d43a0", "#4a68d8", "#6f88e6", "#8ba2f0", "#a9bbf5", "#c6d2fa", "#e3e9fd"] },
+      "rail-ink": { "role": "neutral", "displayName": "Rail White", "canonical": "#ffffff", "tonalRamp": ["#1f35a5", "#3a51b8", "#6c7fd2", "#a9b4e6", "#c9d0f0", "#dfe3f5", "#f2f4fb", "#ffffff"] },
+      "rail-muted": { "role": "neutral", "displayName": "Rail Haze", "canonical": "#c9d0f0", "tonalRamp": ["#2a3466", "#424d85", "#5d69a3", "#7a86c0", "#a1abdb", "#c9d0f0", "#e0e4f7", "#f2f4fb"] },
+      "rail-muted-dark": { "role": "neutral", "displayName": "Night Rail Haze", "canonical": "#b9c2ec", "tonalRamp": ["#262f5e", "#3d477c", "#58639b", "#7480bb", "#97a2d6", "#b9c2ec", "#d6dcf5", "#eef0fb"] },
+      "saffron": { "role": "secondary", "displayName": "Saffron", "canonical": "#f2a93b", "tonalRamp": ["#4a2c06", "#7a4a0c", "#a86a14", "#d48b22", "#f2a93b", "#f6c372", "#f9daa7", "#fdf0da"] },
+      "poppy": { "role": "tertiary", "displayName": "Poppy", "canonical": "#e2412b", "tonalRamp": ["#4a0f08", "#7a1a0e", "#a82a17", "#e2412b", "#ec6d5a", "#f39a8c", "#f8c4bc", "#fce6e2"] },
+      "poppy-dark": { "role": "tertiary", "displayName": "Night Poppy", "canonical": "#f0573f", "tonalRamp": ["#4a0f08", "#7a1a0e", "#b02e1a", "#f0573f", "#f47d6a", "#f8a396", "#fbc9c1", "#fde8e4"] },
+      "iso-5": { "role": "tertiary", "displayName": "Five-Minute Overprint", "canonical": "#64342f", "tonalRamp": ["#1e0f0d", "#3d201c", "#64342f", "#8a4f48", "#ae766e", "#cca19b", "#e4c9c5", "#f5ebe9"] },
+      "iso-10": { "role": "tertiary", "displayName": "Ten-Minute Overprint", "canonical": "#e6633d", "tonalRamp": ["#4a1a0b", "#7a2d14", "#ad421f", "#e6633d", "#ee8a6b", "#f4ae97", "#f9d0c2", "#fdece6"] },
+      "iso-15": { "role": "tertiary", "displayName": "Fifteen-Minute Overprint", "canonical": "#f1bb6a", "tonalRamp": ["#4a3109", "#7a5212", "#a8731f", "#d49634", "#f1bb6a", "#f6cf93", "#fae2bd", "#fdf3e3"] },
+      "iso-5-dark": { "role": "tertiary", "displayName": "Night Five-Minute Overprint", "canonical": "#e5b7af", "tonalRamp": ["#3d201c", "#64342f", "#8a4f48", "#b8807a", "#e5b7af", "#edcbc5", "#f4ddd9", "#faefed"] },
+      "iso-10-dark": { "role": "tertiary", "displayName": "Night Ten-Minute Overprint", "canonical": "#e1633c", "tonalRamp": ["#4a1a0b", "#7a2d14", "#ad421f", "#e1633c", "#ea8a6b", "#f1ae97", "#f7d0c2", "#fcece6"] },
+      "iso-15-dark": { "role": "tertiary", "displayName": "Night Fifteen-Minute Overprint", "canonical": "#b98334", "tonalRamp": ["#33230b", "#563b13", "#7d561d", "#b98334", "#d2a261", "#e2bf8e", "#efdabb", "#f9efe0"] },
+      "paper": { "role": "neutral", "displayName": "Cool Paper", "canonical": "#eef0f6", "tonalRamp": ["#151826", "#2a2f45", "#4a5068", "#7b84a3", "#a3a9bd", "#e1e4ec", "#eef0f6", "#f7f8fb"] },
+      "sheet": { "role": "neutral", "displayName": "Sheet", "canonical": "#ffffff", "tonalRamp": ["#151826", "#2a2f45", "#4a5068", "#7b84a3", "#a3a9bd", "#e1e4ec", "#f7f8fb", "#ffffff"] },
+      "ink": { "role": "neutral", "displayName": "Press Ink", "canonical": "#151826", "tonalRamp": ["#151826", "#2a2f45", "#4a5068", "#5a6180", "#7b84a3", "#a3a9bd", "#e1e4ec", "#eef0f6"] },
+      "muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#4a5068", "tonalRamp": ["#151826", "#2a2f45", "#4a5068", "#5a6180", "#7b84a3", "#a3a9bd", "#e1e4ec", "#eef0f6"] },
+      "paper-dark": { "role": "neutral", "displayName": "Night Paper", "canonical": "#0e1220", "tonalRamp": ["#0e1220", "#161b2e", "#1d2440", "#252d4d", "#3a4366", "#4a5480", "#a7aecb", "#e8ebf5"] },
+      "sheet-dark": { "role": "neutral", "displayName": "Night Sheet", "canonical": "#161b2e", "tonalRamp": ["#0e1220", "#161b2e", "#1d2440", "#252d4d", "#3a4366", "#4a5480", "#a7aecb", "#e8ebf5"] },
+      "ink-dark": { "role": "neutral", "displayName": "Night Ink", "canonical": "#e8ebf5", "tonalRamp": ["#0e1220", "#1d2440", "#3a4366", "#4a5480", "#9aa1bf", "#a7aecb", "#c9cfe6", "#e8ebf5"] },
+      "muted-dark": { "role": "neutral", "displayName": "Night Muted Ink", "canonical": "#a7aecb", "tonalRamp": ["#0e1220", "#1d2440", "#3a4366", "#4a5480", "#7b84a3", "#a7aecb", "#c9cfe6", "#e8ebf5"] },
+      "error": { "role": "neutral", "displayName": "Error Red", "canonical": "#b42318", "tonalRamp": ["#3d0b07", "#6b140d", "#8f1b12", "#b42318", "#d4503f", "#e8857a", "#f4b8b1", "#fce5e2"] },
+      "error-dark": { "role": "neutral", "displayName": "Night Error", "canonical": "#ff8a7a", "tonalRamp": ["#4a120b", "#7a1f14", "#b03424", "#e25a46", "#ff8a7a", "#ffaa9e", "#ffcbc3", "#ffe9e6"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Poster Numeral", "purpose": "The place score only, in ultramarine. 72px at 720px and below." },
+      "wordmark": { "displayName": "Wordmark", "purpose": "Reach15 in the rail masthead, the 15 in saffron. 34px on phones." },
+      "numeral": { "displayName": "Roster Numeral", "purpose": "District Roman numerals and scores; category minutes use the same cut at 22px." },
+      "headline": { "displayName": "Condensed Section Head", "purpose": "Uppercase section heads: 22px in the rail roster, 17px in the place panel." },
+      "title": { "displayName": "Place Title", "purpose": "The selected address, balanced wrap." },
+      "body": { "displayName": "Body", "purpose": "Default text; names at 15px/600." },
+      "label": { "displayName": "Label", "purpose": "Buttons, chips, segmented options, key titles, hints." },
+      "caption": { "displayName": "Caption", "purpose": "Roster caption, search sublabels, nearest-place names, the map band." }
+    },
+    "shadows": [
+      { "name": "pressed-ring", "value": "inset 0 0 0 2px var(--ultra)", "purpose": "The pressed category meter. An inset ring, not elevation; the system has no drop shadows." }
+    ],
+    "rules": [
+      { "name": "rule-hairline", "value": "1px solid rgba(21, 24, 38, 0.14)", "purpose": "Row dividers and meter tracks on paper (dark: rgba(232, 235, 245, 0.14))." },
+      { "name": "rail-hairline", "value": "1px solid rgba(255, 255, 255, 0.2)", "purpose": "Row dividers, chip and rail-button borders on the rail." },
+      { "name": "ink-rule", "value": "2px solid var(--ink)", "purpose": "The open edge of the place panel, map band, map controls and search results." },
+      { "name": "focus-ring", "value": "outline: 2px solid #f2a93b; outline-offset: 2px", "purpose": "Every focusable control." }
+    ],
+    "mapLayers": [
+      { "name": "heatmap", "value": "single ultramarine ramp, linear 0-100; opacity 0.82 at rest, 0.3 under a selection, 0.08 outside a focused district", "purpose": "City-wide score." },
+      { "name": "hex-hover", "value": "line 1.5px ink", "purpose": "Hexagon under the cursor." },
+      { "name": "hex-selected", "value": "line 3px #f2a93b", "purpose": "Hexagon of the chosen point." },
+      { "name": "reach-planes", "value": "15 min saffron 0.75, 10 min poppy 0.72, 5 min ink 0.62; largest drawn first", "purpose": "The Overprint." },
+      { "name": "poi-dots", "value": "circle ink, 2px paper stroke, radius 5 / 6.5 / 8 by profile weight 1 / 2 / 3", "purpose": "Nearest place per category." },
+      { "name": "point", "value": "circle 9px paper, 5px ink stroke", "purpose": "The chosen point." }
+    ],
+    "heatRamp": {
+      "light": ["#dfe3f5", "#a9b4e6", "#6c7fd2", "#3a51b8", "#1a2a8a"],
+      "dark": ["#1d2758", "#2d43a0", "#4a68d8", "#8ca3f2", "#d6deff"]
+    },
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "State transitions: disclosure chevron (0.2s), category fade (0.25s)." },
+      { "name": "skeleton-pulse", "value": "1.2s ease-in-out infinite alternate, opacity 0.5 to 1", "purpose": "Loading bars in the place panel." },
+      { "name": "reduced-motion", "value": "animation: none; transition: none", "purpose": "All motion off under prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "720px", "purpose": "At and below: map on top, rail as a bottom region (46dvh), place panel as a bottom sheet (62dvh)." }
+    ],
+    "layout": [
+      { "name": "rail-width", "value": "400px" },
+      { "name": "place-width", "value": "360px" },
+      { "name": "map-band-height", "value": "40px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Rail Button",
+      "kind": "button",
+      "refersTo": "rail-button",
+      "description": "Bordered toolbar button on the ultramarine rail (language, theme, show all).",
+      "html": "<div class=\"ds-rail\"><button class=\"ds-rail-button\">English</button><button class=\"ds-rail-button\" aria-label=\"Theme\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"square\" stroke-linejoin=\"miter\"><path d=\"M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z\"/></svg></button></div>",
+      "css": ".ds-rail { background: var(--rail, #1f35a5); padding: 16px; display: flex; gap: 4px; } .ds-rail-button { min-height: 36px; min-width: 36px; padding: 0 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 2px; background: transparent; color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: 'Archivo Variable', system-ui, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; } .ds-rail-button svg { width: 18px; height: 18px; } .ds-rail-button:hover { background: var(--rail-deep, #172984); } .ds-rail-button:focus-visible { outline: 2px solid #f2a93b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Segmented Mode Control",
+      "kind": "custom",
+      "refersTo": "segmented-option",
+      "description": "Walk / Bike radiogroup; the checked option inverts to white on ultramarine.",
+      "html": "<div class=\"ds-rail\"><div class=\"ds-segmented\" role=\"radiogroup\"><button role=\"radio\" aria-checked=\"true\">Walk</button><button role=\"radio\" aria-checked=\"false\">Bike</button></div></div>",
+      "css": ".ds-rail { background: var(--rail, #1f35a5); padding: 16px; } .ds-segmented { display: inline-flex; border: 2px solid #fff; border-radius: 2px; } .ds-segmented button { border: 0; background: transparent; color: #fff; padding: 7px 18px; font-family: 'Archivo Variable', system-ui, sans-serif; font-weight: 700; font-size: 15px; cursor: pointer; } .ds-segmented button[aria-checked=\"true\"] { background: #fff; color: var(--rail, #1f35a5); } .ds-segmented button:focus-visible { outline: 2px solid #f2a93b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Persona Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Persona radiogroup chips on the rail.",
+      "html": "<div class=\"ds-rail\"><div class=\"ds-chips\"><button class=\"ds-chip\" aria-checked=\"true\">Balanced</button><button class=\"ds-chip\" aria-checked=\"false\">Family with kids</button><button class=\"ds-chip\" aria-checked=\"false\">Student</button></div></div>",
+      "css": ".ds-rail { background: var(--rail, #1f35a5); padding: 16px; } .ds-chips { display: flex; flex-wrap: wrap; gap: 6px; } .ds-chip { border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; border-radius: 2px; padding: 4px 9px; font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; } .ds-chip:hover { border-color: rgba(255,255,255,0.6); } .ds-chip[aria-checked=\"true\"] { background: #fff; border-color: #fff; color: var(--rail, #1f35a5); font-weight: 700; } .ds-chip:focus-visible { outline: 2px solid #f2a93b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "search-input",
+      "description": "Borderless sheet plane on the rail with an inset line icon.",
+      "html": "<div class=\"ds-rail\"><div class=\"ds-search\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"square\"><path d=\"M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.5 15.5L20 20\"/></svg><input placeholder=\"Address, street or place\"></div></div>",
+      "css": ".ds-rail { background: var(--rail, #1f35a5); padding: 16px; } .ds-search { position: relative; } .ds-search input { width: 100%; height: 48px; padding: 0 14px 0 42px; border: 0; border-radius: 2px; background: var(--sheet, #fff); color: var(--ink, #151826); font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 16px; caret-color: #1f35a5; box-sizing: border-box; } .ds-search input::placeholder { color: var(--muted, #4a5068); } .ds-search svg { position: absolute; left: 13px; top: 14px; width: 20px; height: 20px; color: var(--muted, #4a5068); pointer-events: none; } .ds-search input:focus-visible { outline: 2px solid #f2a93b; outline-offset: 2px; }"
+    },
+    {
+      "name": "District Roster Row",
+      "kind": "custom",
+      "refersTo": "district-row",
+      "description": "Ranked district with condensed numeral, name, p25-p75 spread bar with saffron mean tick, and score.",
+      "html": "<div class=\"ds-rail\"><button class=\"ds-district\"><span class=\"ds-num\">VII</span><span><span class=\"ds-name\">Erzsébetváros</span><span class=\"ds-spread\"><span class=\"ds-band\" style=\"left:62%;width:20%\"></span><span class=\"ds-mean\" style=\"left:82%\"></span></span></span><span class=\"ds-num ds-score\">82</span></button><button class=\"ds-district\" aria-pressed=\"true\"><span class=\"ds-num\">V</span><span><span class=\"ds-name\">Belváros-Lipótváros</span><span class=\"ds-spread\"><span class=\"ds-band\" style=\"left:70%;width:14%\"></span><span class=\"ds-mean\" style=\"left:80%\"></span></span></span><span class=\"ds-num ds-score\">80</span></button></div>",
+      "css": ".ds-rail { background: var(--rail, #1f35a5); padding: 16px 22px; } .ds-district { display: grid; grid-template-columns: 52px 1fr 40px; align-items: center; gap: 10px; padding: 7px 6px; width: 100%; border: 0; border-radius: 2px; background: transparent; color: #fff; text-align: left; font-family: 'Archivo Variable', system-ui, sans-serif; cursor: pointer; } .ds-district + .ds-district { border-top: 1px solid rgba(255,255,255,0.2); } .ds-district:hover { background: var(--rail-deep, #172984); } .ds-district[aria-pressed=\"true\"] { background: #fff; color: var(--rail, #1f35a5); } .ds-num { font-family: 'Archivo Variable', 'Arial Narrow', sans-serif; font-stretch: 62%; font-weight: 850; font-variant-numeric: tabular-nums; font-size: 28px; line-height: 1; } .ds-score { text-align: right; } .ds-name { display: block; font-weight: 600; font-size: 15px; line-height: 1.25; } .ds-spread { position: relative; display: block; height: 6px; margin-top: 5px; background: rgba(255,255,255,0.16); } .ds-band { position: absolute; top: 0; bottom: 0; background: rgba(255,255,255,0.6); } .ds-mean { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1.5px; background: #f2a93b; } .ds-district[aria-pressed=\"true\"] .ds-spread { background: rgba(31,53,165,0.15); } .ds-district[aria-pressed=\"true\"] .ds-band { background: rgba(31,53,165,0.45); } .ds-district:focus-visible { outline: 2px solid #f2a93b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Category Meter",
+      "kind": "custom",
+      "refersTo": "category-meter",
+      "description": "Minutes to the nearest place against the 15-minute limit; pressing recolours the map by that category.",
+      "html": "<div class=\"ds-paper\"><button class=\"ds-meter\"><span class=\"ds-mname\">Park<span class=\"ds-poi\">Erzsébet tér</span></span><span class=\"ds-mval\">1 min</span><span class=\"ds-track\"><span class=\"ds-fill\" style=\"width:7%\"></span></span></button><button class=\"ds-meter\" aria-pressed=\"true\"><span class=\"ds-mname\">Gym<span class=\"ds-poi\">Go Active</span></span><span class=\"ds-mval\">6 min</span><span class=\"ds-track\"><span class=\"ds-fill\" style=\"width:40%\"></span></span></button><button class=\"ds-meter\"><span class=\"ds-mname\">Library<span class=\"ds-poi\">none in reach</span></span><span class=\"ds-mval\">15+ min</span><span class=\"ds-track\"><span class=\"ds-fill ds-over\" style=\"width:100%\"></span></span></button></div>",
+      "css": ".ds-paper { background: var(--paper, #eef0f6); padding: 16px 22px; } .ds-meter { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'name value' 'track track'; column-gap: 12px; row-gap: 5px; padding: 8px 6px; width: 100%; border: 0; border-radius: 2px; background: transparent; color: var(--ink, #151826); text-align: left; font-family: 'Archivo Variable', system-ui, sans-serif; cursor: pointer; transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1); } .ds-meter + .ds-meter { border-top: 1px solid rgba(21,24,38,0.14); } .ds-meter:hover { background: rgba(21,24,38,0.14); } .ds-meter[aria-pressed=\"true\"] { background: var(--sheet, #fff); box-shadow: inset 0 0 0 2px var(--ultra, #1f35a5); } .ds-mname { grid-area: name; font-weight: 600; font-size: 15px; line-height: 1.25; } .ds-poi { display: block; font-weight: 400; font-size: 13px; color: var(--muted, #4a5068); } .ds-mval { grid-area: value; font-family: 'Archivo Variable', 'Arial Narrow', sans-serif; font-stretch: 62%; font-weight: 850; font-variant-numeric: tabular-nums; font-size: 22px; line-height: 1; } .ds-track { grid-area: track; position: relative; height: 4px; background: rgba(21,24,38,0.14); } .ds-fill { position: absolute; inset: 0 auto 0 0; background: var(--ultra, #1f35a5); } .ds-fill.ds-over { background: var(--poppy, #e2412b); } .ds-meter:focus-visible { outline: 2px solid #f2a93b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Place Score",
+      "kind": "custom",
+      "refersTo": "place-panel",
+      "description": "The poster numeral and reach key at the head of the place panel, edged by a 2px ink rule.",
+      "html": "<section class=\"ds-place\"><h2>Bajcsy-Zsilinszky út 1</h2><p class=\"ds-district-line\">VI. kerület · Terézváros</p><div class=\"ds-score\"><span class=\"ds-score-value\">84</span><span class=\"ds-caption\"><strong>Reach score</strong>out of 100 · Walk · Balanced</span></div><p class=\"ds-key-title\">Reach</p><ul class=\"ds-key\"><li><span class=\"ds-sw\" style=\"background:#64342f\"></span>5 min</li><li><span class=\"ds-sw\" style=\"background:#e6633d\"></span>10 min</li><li><span class=\"ds-sw\" style=\"background:#f1bb6a\"></span>15 min</li></ul></section>",
+      "css": ".ds-place { background: var(--paper, #eef0f6); color: var(--ink, #151826); border-left: 2px solid var(--ink, #151826); padding: 22px 22px 18px; width: 360px; font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; } .ds-place h2 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.2; } .ds-district-line { margin: 3px 0 0; font-size: 14px; font-weight: 600; } .ds-score { display: flex; align-items: flex-end; gap: 12px; margin: 10px 0 14px; } .ds-score-value { font-family: 'Archivo Variable', 'Arial Narrow', sans-serif; font-stretch: 62%; font-weight: 850; font-variant-numeric: tabular-nums; font-size: 96px; line-height: 0.82; color: var(--ultra, #1f35a5); } .ds-caption { font-size: 14px; color: var(--muted, #4a5068); padding-bottom: 4px; } .ds-caption strong { display: block; color: var(--ink, #151826); font-weight: 700; } .ds-key-title { margin: 0; font-size: 14px; font-weight: 700; padding-top: 10px; border-top: 1px solid rgba(21,24,38,0.14); } .ds-key { display: flex; gap: 16px; font-size: 14px; list-style: none; padding: 4px 0 2px; margin: 0; } .ds-key li { display: flex; align-items: center; gap: 6px; } .ds-sw { width: 18px; height: 14px; border-radius: 1px; }"
+    },
+    {
+      "name": "Map Band",
+      "kind": "nav",
+      "refersTo": "map-band",
+      "description": "The legend and data credit as a flush paper band along the map's foot.",
+      "html": "<div class=\"ds-band\"><figure class=\"ds-legend\"><figcaption>Score · Walk · Balanced</figcaption><span class=\"ds-scale\"><span>0</span><span class=\"ds-bar\"></span><span>100</span></span></figure><p class=\"ds-credit\"><a href=\"#\">© OpenStreetMap</a> · Protomaps · Reach15</p></div>",
+      "css": ".ds-band { height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 16px; background: var(--paper, #eef0f6); color: var(--ink, #151826); border-top: 2px solid var(--ink, #151826); font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 13px; } .ds-legend { display: flex; align-items: center; gap: 14px; margin: 0; } .ds-legend figcaption { font-weight: 700; white-space: nowrap; } .ds-scale { display: flex; align-items: center; gap: 6px; color: var(--muted, #4a5068); font-variant-numeric: tabular-nums; } .ds-bar { display: block; width: 160px; height: 10px; background: linear-gradient(to right, #dfe3f5, #a9b4e6, #6c7fd2, #3a51b8, #1a2a8a); } .ds-credit { margin: 0; color: var(--muted, #4a5068); white-space: nowrap; } .ds-credit a { color: var(--ink, #151826); text-underline-offset: 3px; } .ds-credit a:focus-visible { outline: 2px solid #f2a93b; outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Plakát",
+    "overview": "Reach15 is printed, not rendered. The system borrows from 1960s and 1970s Hungarian modernist posters: a few flat inks laid side by side on cool paper, numbers set extra-condensed and very heavy, and colour planes that overprint one another instead of floating in boxes. An ultramarine rail owns the left edge; the map fills the rest and is re-inked so the basemap, the heatmap and the chrome all come from the same press.\n\nIt is an operating tool, so density is high and calm: one screen, a rail of controls and a ranked roster on the left, the map as the answer, and a paper place panel that slides against the map's right edge when a point is chosen. Type does the hierarchy work. Rules (thin lines in ink or white) separate things; containers are almost never boxed. Depth comes from inks sitting on top of inks, never from shadows or blur.\n\nThe signature move is the Overprint: a chosen place prints its 5, 10 and 15 minute reach as three nested flat planes (ink, poppy, saffron), with the score beside it as a poster numeral.",
+    "keyCharacteristics": [
+      "Ultramarine rail, cool blue-tinted paper, ink text; saffron and poppy as the only warm inks.",
+      "One variable family, Archivo: condensed heavy (wdth 62) for every number and the wordmark, normal width for UI text.",
+      "Flat planes, 2px corners, rules instead of boxes, no shadows, no blur.",
+      "The hexagon is the only construction shape on the map (hover and selection outlines).",
+      "Light and dark are two printings of the same poster: same roles, re-mixed inks."
+    ],
+    "rules": [
+      { "name": "The Three Inks Rule", "body": "Ultramarine, saffron and poppy are the only chromatic inks. Anything new is a mix or an overprint of these on paper and ink, never a fourth hue.", "section": "colors" },
+      { "name": "The Cool Paper Rule", "body": "Paper is blue-tinted (#eef0f6 family). Cream, warm grey or pure white grounds break the printing.", "section": "colors" },
+      { "name": "The One Ramp Rule", "body": "Scores on the map are one hue, light to deep. No rainbow, no traffic-light red-to-green.", "section": "colors" },
+      { "name": "The Numbers Are Condensed Rule", "body": "Every figure the visitor compares (scores, minutes, district numerals) is set in the condensed heavy cut with tabular figures. UI words never are.", "section": "typography" },
+      { "name": "The Type Is The Interface Rule", "body": "Hierarchy comes from size, width and weight. Section heads are condensed uppercase type, not boxes, icons or coloured labels.", "section": "typography" },
+      { "name": "The Flush Plane Rule", "body": "Panels, bands and map controls meet the viewport or map edge flush, separated by a single 2px ink rule on their open side. Nothing floats over the map with a margin around it.", "section": "layout" },
+      { "name": "The Overprint Rule", "body": "Things in front are drawn as flat inks over what is behind, with the order meaning something (largest reach first, smaller planes printed on top). Never blur, glass, gradients or shadows to suggest depth.", "section": "elevation" },
+      { "name": "The Hexagon Rule", "body": "The hexagon is the only shape drawn for emphasis on the map. No pins, no pulsing rings, no rounded callouts.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do set every score, minute and district numeral in Archivo at wdth 62, weight 850, with tabular figures.",
+      "Do separate panels from the map with a single 2px ink rule and keep them flush to the edge.",
+      "Do keep corners at 2px on controls and containers, 1px on swatches, 0 where a control joins the map edge.",
+      "Do use saffron for focus rings, selection and the one thing that must catch the eye in a block (the wordmark's 15, the mean tick, the selected hexagon).",
+      "Do draw map scores with the single ultramarine ramp, and show it in the legend as one continuous bar because the map interpolates it.",
+      "Do print the reach as nested planes in ink, poppy and saffron, largest first, and keep the key swatches equal to the printed overprint.",
+      "Do invert to white-on-ultramarine (or ultramarine-on-white) for the checked or pressed state inside the rail.",
+      "Do honour reduced motion: all transitions and animations switch off."
+    ],
+    "donts": [
+      "Don't use drop shadows, glass, blur or backdrop filters; depth is overprint and rules.",
+      "Don't use gradients as decoration. The legend bar is the single gradient, because it depicts the interpolated heatmap.",
+      "Don't introduce a fourth chromatic ink or a cream or warm-grey ground.",
+      "Don't colour the heatmap with a multi-hue or red-to-green ramp.",
+      "Don't float rounded cards over the map; this world replaces the white floating search card and rounded result cards.",
+      "Don't add map pins, pulsing markers or shapes other than hexagon outlines and plain circles.",
+      "Don't set UI words in the condensed cut, or numbers in the normal-width cut."
+    ]
+  }
+}

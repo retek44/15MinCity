@@ -1,0 +1,24 @@
+# OSM downloads and extracts
+data/
+*.osm.pbf
+
+# Python
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Local overrides
+.env
+
+# Editors
+.idea/
+.vscode/
+
+# Generated test fixtures and build output
+tests/fixtures/db/
+api/build/
+api/.gradle/
+api/.kotlin/
+

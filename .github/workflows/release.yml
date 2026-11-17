@@ -1,0 +1,159 @@
+name: Release
+
+# Every push to main that passes the full CI suite becomes a release candidate:
+#   CI (reused) -> multi-arch images on GHCR (SBOM + provenance + cosign signature)
+#   -> staging (blue/green + smoke + k6) -> manual approval -> production (blue/green).
+#
+# Deploy jobs only run when the target host is configured (repository variables
+# STAGING_HOST / PRODUCTION_HOST), so forks and fresh clones still get green builds.
+# The `production` environment is configured in GitHub with required reviewers.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io/${{ github.repository_owner }}/reach15
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  images:
+    name: Image · ${{ matrix.image }}
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # keyless cosign signing
+      attestations: write
+    strategy:
+      fail-fast: true
+      matrix:
+        image: [api, web, db, etl]
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: vars
+        run: echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ steps.vars.outputs.tag }}
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=reach15-${{ matrix.image }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Vulnerability gate (critical, fixable)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign image (keyless, GitHub OIDC)
+        run: cosign sign --yes "$REGISTRY/${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  staging:
+    name: Deploy · staging
+    needs: images
+    if: vars.STAGING_HOST != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://${{ vars.STAGING_HOST }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: sigstore/cosign-installer@v3
+      - name: Verify signatures before deploying
+        run: |
+          for image in api web; do
+            cosign verify "$REGISTRY/$image:${{ needs.images.outputs.tag }}" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          done
+      - name: Blue/green deploy
+        uses: ./.github/actions/ssh-deploy
+        with:
+          host: ${{ vars.STAGING_HOST }}
+          user: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          known-hosts: ${{ secrets.STAGING_KNOWN_HOSTS }}
+          script: |
+            cd /opt/reach15
+            git fetch --quiet origin && git checkout --quiet --detach ${{ github.sha }}
+            TAG=${{ needs.images.outputs.tag }} REGISTRY=${{ env.REGISTRY }} deploy/bluegreen.sh
+      - name: k6 latency budgets against staging (real Budapest data)
+        uses: grafana/run-k6-action@v1
+        with:
+          path: tests/perf/api.js
+        env:
+          BASE_URL: https://${{ vars.STAGING_HOST }}
+          AREA: budapest
+
+  production:
+    name: Deploy · production
+    needs: [images, staging]
+    if: vars.PRODUCTION_HOST != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: production # required reviewers -> manual approval gate
+      url: https://${{ vars.PRODUCTION_HOST }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Blue/green deploy
+        uses: ./.github/actions/ssh-deploy
+        with:
+          host: ${{ vars.PRODUCTION_HOST }}
+          user: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+          script: |
+            cd /opt/reach15
+            git fetch --quiet origin && git checkout --quiet --detach ${{ github.sha }}
+            TAG=${{ needs.images.outputs.tag }} REGISTRY=${{ env.REGISTRY }} deploy/bluegreen.sh
+      - name: Post-release smoke
+        run: |
+          base=https://${{ vars.PRODUCTION_HOST }}
+          curl -fsS --retry 5 --retry-all-errors "$base/healthz" > /dev/null
+          curl -fsS "$base/api/v1/meta" | grep -q '"status":"succeeded"'

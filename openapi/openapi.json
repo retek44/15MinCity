@@ -1,0 +1,699 @@
+{
+  "components" : {
+    "schemas" : {
+      "AccessResponse" : {
+        "properties" : {
+          "address" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/ReverseResult"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "categories" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryAccess"
+            },
+            "type" : "array"
+          },
+          "mode" : {
+            "enum" : [ "walk", "bike" ],
+            "type" : "string"
+          },
+          "point" : {
+            "$ref" : "#/components/schemas/LonLat"
+          },
+          "score" : {
+            "description" : "Weighted accessibility score, 0..100",
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "required" : [ "categories", "mode", "point", "score" ],
+        "type" : "object"
+      },
+      "CategoryAccess" : {
+        "properties" : {
+          "category" : {
+            "enum" : [ "grocery", "pharmacy", "doctor", "school", "kindergarten", "park", "transit", "food", "gym", "library" ],
+            "type" : "string"
+          },
+          "poi" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Poi"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "score" : {
+            "description" : "0..1, linear decay to 0 at 15 minutes",
+            "format" : "double",
+            "type" : "number"
+          },
+          "seconds" : {
+            "description" : "Travel time to the nearest POI, null if none within 30 minutes",
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "weight" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "required" : [ "category", "score", "weight" ],
+        "type" : "object"
+      },
+      "CategoryDto" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "label" ],
+        "type" : "object"
+      },
+      "DataRelease" : {
+        "properties" : {
+          "importedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "sourceFile" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "importedAt", "sourceFile", "status" ],
+        "type" : "object"
+      },
+      "DistrictScore" : {
+        "properties" : {
+          "bbox" : {
+            "description" : "Bounding box of the district: west, south, east, north (WGS84)",
+            "items" : {
+              "format" : "double",
+              "type" : "number"
+            },
+            "type" : "array"
+          },
+          "cells" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "districtId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "p25" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "p75" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "rank" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "score" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "required" : [ "bbox", "cells", "districtId", "name", "p25", "p75", "rank", "score" ],
+        "type" : "object"
+      },
+      "Feature" : {
+        "properties" : {
+          "geometry" : {
+            "$ref" : "#/components/schemas/JsonNode",
+            "description" : "GeoJSON geometry (WGS84)"
+          },
+          "properties" : {
+            "additionalProperties" : { },
+            "type" : "object"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "geometry", "properties", "type" ],
+        "type" : "object"
+      },
+      "FeatureCollection" : {
+        "properties" : {
+          "features" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Feature"
+            },
+            "type" : "array"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "features", "type" ],
+        "type" : "object"
+      },
+      "JsonNode" : {
+        "properties" : {
+          "array" : {
+            "type" : "boolean"
+          },
+          "bigDecimal" : {
+            "type" : "boolean"
+          },
+          "bigInteger" : {
+            "type" : "boolean"
+          },
+          "binary" : {
+            "type" : "boolean"
+          },
+          "boolean" : {
+            "type" : "boolean"
+          },
+          "container" : {
+            "type" : "boolean"
+          },
+          "double" : {
+            "type" : "boolean"
+          },
+          "embeddedValue" : {
+            "type" : "boolean"
+          },
+          "empty" : {
+            "type" : "boolean"
+          },
+          "float" : {
+            "type" : "boolean"
+          },
+          "floatingPointNumber" : {
+            "type" : "boolean"
+          },
+          "int" : {
+            "type" : "boolean"
+          },
+          "integralNumber" : {
+            "type" : "boolean"
+          },
+          "long" : {
+            "type" : "boolean"
+          },
+          "missingNode" : {
+            "type" : "boolean"
+          },
+          "nodeType" : {
+            "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ],
+            "type" : "string"
+          },
+          "null" : {
+            "type" : "boolean"
+          },
+          "number" : {
+            "type" : "boolean"
+          },
+          "object" : {
+            "type" : "boolean"
+          },
+          "pojo" : {
+            "type" : "boolean"
+          },
+          "short" : {
+            "type" : "boolean"
+          },
+          "string" : {
+            "type" : "boolean"
+          },
+          "textual" : {
+            "deprecated" : true,
+            "type" : "boolean"
+          },
+          "valueNode" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "array", "bigDecimal", "bigInteger", "binary", "boolean", "container", "double", "embeddedValue", "empty", "float", "floatingPointNumber", "int", "integralNumber", "long", "missingNode", "nodeType", "null", "number", "object", "pojo", "short", "string", "textual", "valueNode" ],
+        "type" : "object"
+      },
+      "LonLat" : {
+        "properties" : {
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "required" : [ "lat", "lon" ],
+        "type" : "object"
+      },
+      "PersonaDto" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "weights" : {
+            "additionalProperties" : {
+              "format" : "double",
+              "type" : "number"
+            },
+            "type" : "object"
+          }
+        },
+        "required" : [ "id", "label", "weights" ],
+        "type" : "object"
+      },
+      "Poi" : {
+        "properties" : {
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "name" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "lat", "lon" ],
+        "type" : "object"
+      },
+      "ReverseResult" : {
+        "properties" : {
+          "distanceM" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "sublabel" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "distanceM", "label", "lat", "lon" ],
+        "type" : "object"
+      },
+      "SearchResult" : {
+        "properties" : {
+          "category" : {
+            "type" : [ "string", "null" ]
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "sublabel" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "kind", "label", "lat", "lon" ],
+        "type" : "object"
+      }
+    }
+  },
+  "info" : {
+    "description" : "15-minute city accessibility for Budapest: isochrones, scores, search.",
+    "license" : {
+      "name" : "Map data © OpenStreetMap contributors, ODbL",
+      "url" : "https://www.openstreetmap.org/copyright"
+    },
+    "title" : "Reach15 API",
+    "version" : "v1"
+  },
+  "openapi" : "3.1.0",
+  "paths" : {
+    "/api/v1/access" : {
+      "get" : {
+        "operationId" : "access",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "lon",
+          "required" : true,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 180.0,
+            "minimum" : -180.0,
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "lat",
+          "required" : true,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 90.0,
+            "minimum" : -90.0,
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "mode",
+          "required" : false,
+          "schema" : {
+            "default" : "walk",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "persona",
+          "required" : false,
+          "schema" : {
+            "default" : "balanced",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Custom weights, e.g. grocery:3,park:1 (overrides persona)",
+          "in" : "query",
+          "name" : "weights",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccessResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Accessibility of a point: nearest POI per category and weighted score",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/categories" : {
+      "get" : {
+        "operationId" : "categories",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/CategoryDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "POI categories",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/districts/ranking" : {
+      "get" : {
+        "operationId" : "districtRanking",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "mode",
+          "required" : false,
+          "schema" : {
+            "default" : "walk",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "persona",
+          "required" : false,
+          "schema" : {
+            "default" : "balanced",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "weights",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/DistrictScore"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Districts ranked by mean accessibility score",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/isochrone" : {
+      "get" : {
+        "operationId" : "isochrone",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "lon",
+          "required" : true,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 180.0,
+            "minimum" : -180.0,
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "lat",
+          "required" : true,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 90.0,
+            "minimum" : -90.0,
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "mode",
+          "required" : false,
+          "schema" : {
+            "default" : "walk",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Comma separated limits in minutes, each 1..30",
+          "in" : "query",
+          "name" : "minutes",
+          "required" : false,
+          "schema" : {
+            "default" : [ 5, 10, 15 ],
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FeatureCollection"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Isochrones: the area reachable within each time limit, as GeoJSON",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/meta" : {
+      "get" : {
+        "operationId" : "meta",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DataRelease"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "The data release currently served",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/personas" : {
+      "get" : {
+        "operationId" : "personas",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/PersonaDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Preset category weights",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/reverse" : {
+      "get" : {
+        "operationId" : "reverse",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "lon",
+          "required" : true,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 180.0,
+            "minimum" : -180.0,
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "lat",
+          "required" : true,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 90.0,
+            "minimum" : -90.0,
+            "type" : "number"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReverseResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Nearest address to a point (within 150 m)",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/search" : {
+      "get" : {
+        "operationId" : "search",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : true,
+          "schema" : {
+            "maxLength" : 100,
+            "minLength" : 2,
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 8,
+            "format" : "int32",
+            "maximum" : 50,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Map centre longitude, ranks nearby results higher",
+          "in" : "query",
+          "name" : "lon",
+          "required" : false,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 180.0,
+            "minimum" : -180.0,
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "lat",
+          "required" : false,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 90.0,
+            "minimum" : -90.0,
+            "type" : "number"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/SearchResult"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Search addresses, streets and named places (typo tolerant)",
+        "tags" : [ "geo-controller" ]
+      }
+    }
+  }
+}

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="reach15-fixtures">
+  <node id="1000" version="1" lat="47.50000000" lon="19.05000000"/>
+  <node id="1001" version="1" lat="47.50000000" lon="19.05132725"/>
+  <node id="1002" version="1" lat="47.50000000" lon="19.05265451"/>
+  <node id="1003" version="1" lat="47.50000000" lon="19.05398176"/>
+  <node id="1004" version="1" lat="47.50000000" lon="19.05530901"/>
+  <node id="1005" version="1" lat="47.50000000" lon="19.05663627"/>
+  <node id="1006" version="1" lat="47.50000000" lon="19.05796352"/>
+  <node id="1007" version="1" lat="47.50000000" lon="19.05929077"/>
+  <node id="1008" version="1" lat="47.50000000" lon="19.06061803"/>
+  <node id="1009" version="1" lat="47.50000000" lon="19.06194528"/>
+  <node id="1010" version="1" lat="47.50089944" lon="19.05000000"/>
+  <node id="1011" version="1" lat="47.50089944" lon="19.05132725"/>
+  <node id="1012" version="1" lat="47.50089944" lon="19.05265451"/>
+  <node id="1013" version="1" lat="47.50089944" lon="19.05398176"/>
+  <node id="1014" version="1" lat="47.50089944" lon="19.05530901"/>
+  <node id="1015" version="1" lat="47.50089944" lon="19.05663627"/>
+  <node id="1016" version="1" lat="47.50089944" lon="19.05796352"/>
+  <node id="1017" version="1" lat="47.50089944" lon="19.05929077"/>
+  <node id="1018" version="1" lat="47.50089944" lon="19.06061803"/>
+  <node id="1019" version="1" lat="47.50089944" lon="19.06194528"/>
+  <node id="1020" version="1" lat="47.50179888" lon="19.05000000"/>
+  <node id="1021" version="1" lat="47.50179888" lon="19.05132725"/>
+  <node id="1022" version="1" lat="47.50179888" lon="19.05265451"/>
+  <node id="1023" version="1" lat="47.50179888" lon="19.05398176"/>
+  <node id="1024" version="1" lat="47.50179888" lon="19.05530901"/>
+  <node id="1025" version="1" lat="47.50179888" lon="19.05663627"/>
+  <node id="1026" version="1" lat="47.50179888" lon="19.05796352"/>
+  <node id="1027" version="1" lat="47.50179888" lon="19.05929077"/>
+  <node id="1028" version="1" lat="47.50179888" lon="19.06061803"/>
+  <node id="1029" version="1" lat="47.50179888" lon="19.06194528"/>
+  <node id="1030" version="1" lat="47.50269831" lon="19.05000000"/>
+  <node id="1031" version="1" lat="47.50269831" lon="19.05132725"/>
+  <node id="1032" version="1" lat="47.50269831" lon="19.05265451"/>
+  <node id="1033" version="1" lat="47.50269831" lon="19.05398176"/>
+  <node id="1034" version="1" lat="47.50269831" lon="19.05530901"/>
+  <node id="1035" version="1" lat="47.50269831" lon="19.05663627"/>
+  <node id="1036" version="1" lat="47.50269831" lon="19.05796352"/>
+  <node id="1037" version="1" lat="47.50269831" lon="19.05929077"/>
+  <node id="1038" version="1" lat="47.50269831" lon="19.06061803"/>
+  <node id="1039" version="1" lat="47.50269831" lon="19.06194528"/>
+  <node id="1040" version="1" lat="47.50359775" lon="19.05000000"/>
+  <node id="1041" version="1" lat="47.50359775" lon="19.05132725"/>
+  <node id="1042" version="1" lat="47.50359775" lon="19.05265451"/>
+  <node id="1043" version="1" lat="47.50359775" lon="19.05398176"/>
+  <node id="1044" version="1" lat="47.50359775" lon="19.05530901"/>
+  <node id="1045" version="1" lat="47.50359775" lon="19.05663627"/>
+  <node id="1046" version="1" lat="47.50359775" lon="19.05796352"/>
+  <node id="1047" version="1" lat="47.50359775" lon="19.05929077"/>
+  <node id="1048" version="1" lat="47.50359775" lon="19.06061803"/>
+  <node id="1049" version="1" lat="47.50359775" lon="19.06194528"/>
+  <node id="1050" version="1" lat="47.50449719" lon="19.05000000"/>
+  <node id="1051" version="1" lat="47.50449719" lon="19.05132725"/>
+  <node id="1052" version="1" lat="47.50449719" lon="19.05265451"/>
+  <node id="1053" version="1" lat="47.50449719" lon="19.05398176"/>
+  <node id="1054" version="1" lat="47.50449719" lon="19.05530901"/>
+  <node id="1055" version="1" lat="47.50449719" lon="19.05663627"/>
+  <node id="1056" version="1" lat="47.50449719" lon="19.05796352"/>
+  <node id="1057" version="1" lat="47.50449719" lon="19.05929077"/>
+  <node id="1058" version="1" lat="47.50449719" lon="19.06061803"/>
+  <node id="1059" version="1" lat="47.50449719" lon="19.06194528"/>
+  <node id="1060" version="1" lat="47.50539663" lon="19.05000000"/>
+  <node id="1061" version="1" lat="47.50539663" lon="19.05132725"/>
+  <node id="1062" version="1" lat="47.50539663" lon="19.05265451"/>
+  <node id="1063" version="1" lat="47.50539663" lon="19.05398176"/>
+  <node id="1064" version="1" lat="47.50539663" lon="19.05530901"/>
+  <node id="1065" version="1" lat="47.50539663" lon="19.05663627"/>
+  <node id="1066" version="1" lat="47.50539663" lon="19.05796352"/>
+  <node id="1067" version="1" lat="47.50539663" lon="19.05929077"/>
+  <node id="1068" version="1" lat="47.50539663" lon="19.06061803"/>
+  <node id="1069" version="1" lat="47.50539663" lon="19.06194528"/>
+  <node id="1070" version="1" lat="47.50629606" lon="19.05000000"/>
+  <node id="1071" version="1" lat="47.50629606" lon="19.05132725"/>
+  <node id="1072" version="1" lat="47.50629606" lon="19.05265451"/>
+  <node id="1073" version="1" lat="47.50629606" lon="19.05398176"/>
+  <node id="1074" version="1" lat="47.50629606" lon="19.05530901"/>
+  <node id="1075" version="1" lat="47.50629606" lon="19.05663627"/>
+  <node id="1076" version="1" lat="47.50629606" lon="19.05796352"/>
+  <node id="1077" version="1" lat="47.50629606" lon="19.05929077"/>
+  <node id="1078" version="1" lat="47.50629606" lon="19.06061803"/>
+  <node id="1079" version="1" lat="47.50629606" lon="19.06194528"/>
+  <node id="1080" version="1" lat="47.50719550" lon="19.05000000"/>
+  <node id="1081" version="1" lat="47.50719550" lon="19.05132725"/>
+  <node id="1082" version="1" lat="47.50719550" lon="19.05265451"/>
+  <node id="1083" version="1" lat="47.50719550" lon="19.05398176"/>
+  <node id="1084" version="1" lat="47.50719550" lon="19.05530901"/>
+  <node id="1085" version="1" lat="47.50719550" lon="19.05663627"/>
+  <node id="1086" version="1" lat="47.50719550" lon="19.05796352"/>
+  <node id="1087" version="1" lat="47.50719550" lon="19.05929077"/>
+  <node id="1088" version="1" lat="47.50719550" lon="19.06061803"/>
+  <node id="1089" version="1" lat="47.50719550" lon="19.06194528"/>
+  <node id="1090" version="1" lat="47.50809494" lon="19.05000000"/>
+  <node id="1091" version="1" lat="47.50809494" lon="19.05132725"/>
+  <node id="1092" version="1" lat="47.50809494" lon="19.05265451"/>
+  <node id="1093" version="1" lat="47.50809494" lon="19.05398176"/>
+  <node id="1094" version="1" lat="47.50809494" lon="19.05530901"/>
+  <node id="1095" version="1" lat="47.50809494" lon="19.05663627"/>
+  <node id="1096" version="1" lat="47.50809494" lon="19.05796352"/>
+  <node id="1097" version="1" lat="47.50809494" lon="19.05929077"/>
+  <node id="1098" version="1" lat="47.50809494" lon="19.06061803"/>
+  <node id="1099" version="1" lat="47.50809494" lon="19.06194528"/>
+  <node id="2001" version="1" lat="47.49820112" lon="19.05000000"/>
+  <node id="2002" version="1" lat="47.49820112" lon="19.06194528"/>
+  <node id="3001" version="1" lat="47.50449719" lon="19.06393616"/>
+  <node id="3002" version="1" lat="47.50449719" lon="19.06526341"/>
+  <node id="3101" version="1" lat="47.50899438" lon="19.06194528"><tag k="amenity" v="school"/><tag k="name" v="Steps School"/></node>
+  <node id="5001" version="1" lat="47.50000000" lon="19.05000000"><tag k="shop" v="supermarket"/><tag k="name" v="Corner Market"/></node>
+  <node id="5002" version="1" lat="47.50809494" lon="19.06194528"><tag k="amenity" v="pharmacy"/><tag k="name" v="Grid Pharmacy"/></node>
+  <node id="5004" version="1" lat="47.50449719" lon="19.06393616"><tag k="amenity" v="cafe"/><tag k="name" v="Island Cafe"/></node>
+  <node id="5005" version="1" lat="47.50000000" lon="19.06194528"><tag k="highway" v="bus_stop"/><tag k="name" v="Grid Stop"/></node>
+  <node id="5006" version="1" lat="47.50179888" lon="19.05265451"><tag k="addr:street" v="Andrássy út"/><tag k="addr:housenumber" v="1"/><tag k="addr:postcode" v="1061"/></node>
+  <node id="6001" version="1" lat="47.50269831" lon="19.05398176"/>
+  <node id="6002" version="1" lat="47.50269831" lon="19.05663627"/>
+  <node id="6003" version="1" lat="47.50449719" lon="19.05663627"/>
+  <node id="6004" version="1" lat="47.50449719" lon="19.05398176"/>
+  <node id="7001" version="1" lat="47.49730169" lon="19.04867275"/>
+  <node id="7002" version="1" lat="47.49730169" lon="19.06592704"/>
+  <node id="7003" version="1" lat="47.50989381" lon="19.06592704"/>
+  <node id="7004" version="1" lat="47.50989381" lon="19.04867275"/>
+  <way id="1" version="1"><nd ref="1000"/><nd ref="1001"/><nd ref="1002"/><nd ref="1003"/><nd ref="1004"/><nd ref="1005"/><nd ref="1006"/><nd ref="1007"/><nd ref="1008"/><nd ref="1009"/><tag k="highway" v="residential"/><tag k="name" v="Row 0"/><tag k="oneway" v="yes"/></way>
+  <way id="2" version="1"><nd ref="1010"/><nd ref="1011"/><nd ref="1012"/><nd ref="1013"/><nd ref="1014"/><nd ref="1015"/><nd ref="1016"/><nd ref="1017"/><nd ref="1018"/><nd ref="1019"/><tag k="highway" v="residential"/><tag k="name" v="Row 1"/></way>
+  <way id="3" version="1"><nd ref="1020"/><nd ref="1021"/><nd ref="1022"/><nd ref="1023"/><nd ref="1024"/><nd ref="1025"/><nd ref="1026"/><nd ref="1027"/><nd ref="1028"/><nd ref="1029"/><tag k="highway" v="residential"/><tag k="name" v="Row 2"/></way>
+  <way id="4" version="1"><nd ref="1030"/><nd ref="1031"/><nd ref="1032"/><nd ref="1033"/><nd ref="1034"/><nd ref="1035"/><nd ref="1036"/><nd ref="1037"/><nd ref="1038"/><nd ref="1039"/><tag k="highway" v="residential"/><tag k="name" v="Row 3"/></way>
+  <way id="5" version="1"><nd ref="1040"/><nd ref="1041"/><nd ref="1042"/><nd ref="1043"/><nd ref="1044"/><nd ref="1045"/><nd ref="1046"/><nd ref="1047"/><nd ref="1048"/><nd ref="1049"/><tag k="highway" v="residential"/><tag k="name" v="Row 4"/></way>
+  <way id="6" version="1"><nd ref="1050"/><nd ref="1051"/><nd ref="1052"/><nd ref="1053"/><nd ref="1054"/><nd ref="1055"/><nd ref="1056"/><nd ref="1057"/><nd ref="1058"/><nd ref="1059"/><tag k="highway" v="residential"/><tag k="name" v="Row 5"/></way>
+  <way id="7" version="1"><nd ref="1060"/><nd ref="1061"/><nd ref="1062"/><nd ref="1063"/><nd ref="1064"/><nd ref="1065"/><nd ref="1066"/><nd ref="1067"/><nd ref="1068"/><nd ref="1069"/><tag k="highway" v="residential"/><tag k="name" v="Row 6"/></way>
+  <way id="8" version="1"><nd ref="1070"/><nd ref="1071"/><nd ref="1072"/><nd ref="1073"/><nd ref="1074"/><nd ref="1075"/><nd ref="1076"/><nd ref="1077"/><nd ref="1078"/><nd ref="1079"/><tag k="highway" v="residential"/><tag k="name" v="Row 7"/></way>
+  <way id="9" version="1"><nd ref="1080"/><nd ref="1081"/><nd ref="1082"/><nd ref="1083"/><nd ref="1084"/><nd ref="1085"/><nd ref="1086"/><nd ref="1087"/><nd ref="1088"/><nd ref="1089"/><tag k="highway" v="residential"/><tag k="name" v="Row 8"/></way>
+  <way id="10" version="1"><nd ref="1090"/><nd ref="1091"/><nd ref="1092"/><nd ref="1093"/><nd ref="1094"/><nd ref="1095"/><nd ref="1096"/><nd ref="1097"/><nd ref="1098"/><nd ref="1099"/><tag k="highway" v="residential"/><tag k="name" v="Row 9"/></way>
+  <way id="11" version="1"><nd ref="1000"/><nd ref="1010"/><nd ref="1020"/><nd ref="1030"/><nd ref="1040"/><nd ref="1050"/><nd ref="1060"/><nd ref="1070"/><nd ref="1080"/><nd ref="1090"/><tag k="highway" v="residential"/></way>
+  <way id="12" version="1"><nd ref="1001"/><nd ref="1011"/><nd ref="1021"/><nd ref="1031"/><nd ref="1041"/><nd ref="1051"/><nd ref="1061"/><nd ref="1071"/><nd ref="1081"/><nd ref="1091"/><tag k="highway" v="residential"/></way>
+  <way id="13" version="1"><nd ref="1002"/><nd ref="1012"/><nd ref="1022"/><nd ref="1032"/><nd ref="1042"/><nd ref="1052"/><nd ref="1062"/><nd ref="1072"/><nd ref="1082"/><nd ref="1092"/><tag k="highway" v="residential"/></way>
+  <way id="14" version="1"><nd ref="1003"/><nd ref="1013"/><nd ref="1023"/><nd ref="1033"/><nd ref="1043"/><nd ref="1053"/><nd ref="1063"/><nd ref="1073"/><nd ref="1083"/><nd ref="1093"/><tag k="highway" v="residential"/></way>
+  <way id="15" version="1"><nd ref="1004"/><nd ref="1014"/><nd ref="1024"/><nd ref="1034"/><nd ref="1044"/><nd ref="1054"/><nd ref="1064"/><nd ref="1074"/><nd ref="1084"/><nd ref="1094"/><tag k="highway" v="residential"/></way>
+  <way id="16" version="1"><nd ref="1005"/><nd ref="1015"/><nd ref="1025"/><nd ref="1035"/><nd ref="1045"/><nd ref="1055"/><nd ref="1065"/><nd ref="1075"/><nd ref="1085"/><nd ref="1095"/><tag k="highway" v="residential"/></way>
+  <way id="17" version="1"><nd ref="1006"/><nd ref="1016"/><nd ref="1026"/><nd ref="1036"/><nd ref="1046"/><nd ref="1056"/><nd ref="1066"/><nd ref="1076"/><nd ref="1086"/><nd ref="1096"/><tag k="highway" v="residential"/></way>
+  <way id="18" version="1"><nd ref="1007"/><nd ref="1017"/><nd ref="1027"/><nd ref="1037"/><nd ref="1047"/><nd ref="1057"/><nd ref="1067"/><nd ref="1077"/><nd ref="1087"/><nd ref="1097"/><tag k="highway" v="residential"/></way>
+  <way id="19" version="1"><nd ref="1008"/><nd ref="1018"/><nd ref="1028"/><nd ref="1038"/><nd ref="1048"/><nd ref="1058"/><nd ref="1068"/><nd ref="1078"/><nd ref="1088"/><nd ref="1098"/><tag k="highway" v="residential"/></way>
+  <way id="20" version="1"><nd ref="1009"/><nd ref="1019"/><nd ref="1029"/><nd ref="1039"/><nd ref="1049"/><nd ref="1059"/><nd ref="1069"/><nd ref="1079"/><nd ref="1089"/><nd ref="1099"/><tag k="highway" v="residential"/></way>
+  <way id="30" version="1"><nd ref="1000"/><nd ref="1011"/><tag k="highway" v="footway"/><tag k="foot" v="no"/></way>
+  <way id="31" version="1"><nd ref="2001"/><nd ref="2002"/><tag k="highway" v="motorway"/></way>
+  <way id="32" version="1"><nd ref="3001"/><nd ref="3002"/><tag k="highway" v="footway"/></way>
+  <way id="33" version="1"><nd ref="1099"/><nd ref="3101"/><tag k="highway" v="steps"/></way>
+  <way id="34" version="1"><nd ref="6001"/><nd ref="6002"/><nd ref="6003"/><nd ref="6004"/><nd ref="6001"/><tag k="leisure" v="park"/><tag k="name" v="Grid Park"/></way>
+  <way id="40" version="1"><nd ref="7001"/><nd ref="7002"/><nd ref="7003"/><nd ref="7004"/><nd ref="7001"/></way>
+  <relation id="1" version="1"><member type="way" ref="40" role="outer"/><tag k="type" v="boundary"/><tag k="boundary" v="administrative"/><tag k="admin_level" v="9"/><tag k="name" v="Test District"/></relation>
+</osm>

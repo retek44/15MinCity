@@ -1,0 +1,74 @@
+name: Data release
+
+# Weekly "blue/green for data": a fresh Geofabrik extract is imported into reach15_next on the
+# host, gated by the data-quality checks and the score-drift check against production, then
+# swapped in by renaming databases (deploy/data-release.sh). Staging goes first; production
+# needs the environment approval and only runs when staging succeeded.
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Monday 03:17 UTC, after Geofabrik's nightly extracts
+  workflow_dispatch:
+    inputs:
+      action:
+        description: release builds and swaps in new data; rollback restores the previous release
+        type: choice
+        options: [release, rollback]
+        default: release
+
+concurrency:
+  group: data-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    name: Data · staging
+    if: vars.STAGING_HOST != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: staging
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/ssh-deploy
+        with:
+          host: ${{ vars.STAGING_HOST }}
+          user: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          known-hosts: ${{ secrets.STAGING_KNOWN_HOSTS }}
+          script: |
+            cd /opt/reach15
+            deploy/data-release.sh ${{ inputs.action == 'rollback' && 'rollback' || '' }}
+            ls -t data/drift-*.json 2>/dev/null | head -1 | xargs -r cat
+      - name: Smoke test the swapped data
+        run: |
+          base=https://${{ vars.STAGING_HOST }}
+          curl -fsS --retry 10 --retry-all-errors "$base/api/v1/meta" | tee meta.json | grep -q '"status":"succeeded"'
+          curl -fsS "$base/api/v1/search?q=deak%20ter" | grep -q 'Deák tér'
+          curl -fsS "$base/api/v1/districts/ranking" | grep -q '"rank":1'
+
+  production:
+    name: Data · production
+    needs: staging
+    if: vars.PRODUCTION_HOST != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/ssh-deploy
+        with:
+          host: ${{ vars.PRODUCTION_HOST }}
+          user: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          known-hosts: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+          script: |
+            cd /opt/reach15
+            deploy/data-release.sh ${{ inputs.action == 'rollback' && 'rollback' || '' }}
+      - name: Smoke test the swapped data
+        run: |
+          base=https://${{ vars.PRODUCTION_HOST }}
+          curl -fsS --retry 10 --retry-all-errors "$base/api/v1/meta" | grep -q '"status":"succeeded"'
+          curl -fsS "$base/api/v1/search?q=deak%20ter" | grep -q 'Deák tér'

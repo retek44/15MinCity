@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: reach15-api
+  datasource:
+    url: ${REACH15_DB_URL:jdbc:postgresql://localhost:5433/reach15}
+    username: ${REACH15_DB_USER:reach15}
+    password: ${REACH15_DB_PASSWORD:reach15}
+    hikari:
+      maximum-pool-size: 10
+      read-only: true
+  mvc:
+    problemdetails:
+      enabled: true
+  cache:
+    cache-names: isochrone,access,ranking
+    caffeine:
+      spec: maximumSize=5000,expireAfterWrite=1h
+
+server:
+  port: ${PORT:8080}
+  compression:
+    enabled: true
+    mime-types: application/json,application/geo+json
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /api/openapi.json
+
+reach15:
+  personas:
+    balanced:
+      label: Balanced
+      weights: { grocery: 1, pharmacy: 1, doctor: 1, school: 1, kindergarten: 1, park: 1, transit: 1, food: 1, gym: 1, library: 1 }
+    family:
+      label: Family with kids
+      weights: { grocery: 3, school: 3, kindergarten: 3, park: 3, doctor: 2, pharmacy: 2, transit: 2, food: 1, library: 1 }
+    student:
+      label: Student
+      weights: { transit: 3, grocery: 3, food: 3, library: 2, gym: 2, park: 1, pharmacy: 1, doctor: 1 }
+    senior:
+      label: Senior
+      weights: { grocery: 3, pharmacy: 3, doctor: 3, transit: 3, park: 2, food: 1, library: 1 }
+    active:
+      label: Active lifestyle
+      weights: { park: 3, gym: 3, transit: 2, grocery: 2, food: 2 }

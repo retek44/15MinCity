@@ -1,0 +1,14 @@
+{
+  "description": "Shared scoring test vectors. The API (Kotlin), the web client (MapLibre expression) and the database (analytics.cell_scores) must all produce these scores.",
+  "maxSeconds": 900,
+  "tolerance": 0.001,
+  "cases": [
+    { "name": "everything at the doorstep", "times": { "grocery": 0, "park": 0 }, "weights": { "grocery": 1, "park": 1 }, "score": 100 },
+    { "name": "half the limit", "times": { "grocery": 450 }, "weights": { "grocery": 1 }, "score": 50 },
+    { "name": "unreachable categories count as zero", "times": {}, "weights": { "grocery": 1, "park": 1 }, "score": 0 },
+    { "name": "weighted mean", "times": { "grocery": 0, "park": 900 }, "weights": { "grocery": 3, "park": 1 }, "score": 75 },
+    { "name": "times beyond the limit clamp to zero", "times": { "grocery": 2000, "park": 0 }, "weights": { "grocery": 1, "park": 1 }, "score": 50 },
+    { "name": "zero weights are ignored", "times": { "grocery": 0, "park": 900 }, "weights": { "grocery": 1, "park": 0 }, "score": 100 },
+    { "name": "mixed", "times": { "grocery": 300, "pharmacy": 600, "transit": 120 }, "weights": { "grocery": 2, "pharmacy": 1, "transit": 1 }, "score": 63.3333 }
+  ]
+}

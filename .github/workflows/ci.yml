@@ -1,0 +1,174 @@
+name: CI
+
+# Pull requests run it directly; pushes to main run it through release.yml (workflow_call),
+# so the release only builds images from a commit that passed the whole suite.
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- fast checks
+  etl-unit:
+    name: ETL · lint + unit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: etl
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: etl/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q --junitxml=../reports/etl-unit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-etl-unit
+          path: reports/
+
+  web-unit:
+    name: Web · typecheck + lint + unit + contract drift
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Generated API types match openapi/openapi.json
+        run: npm run api:types && git diff --exit-code src/api/schema.d.ts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npx vitest run --reporter=default --reporter=junit --outputFile=../reports/web-unit.xml
+      - run: npx vite build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-web-unit
+          path: reports/
+
+  static-analysis:
+    name: Dockerfiles + secrets + dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: hadolint
+        run: |
+          for f in db/Dockerfile etl/Dockerfile api/Dockerfile web/Dockerfile; do
+            echo "::group::$f"
+            docker run --rm -i hadolint/hadolint hadolint --ignore DL3008 --ignore DL3018 - < "$f"
+            echo "::endgroup::"
+          done
+      - name: gitleaks
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest git /repo --redact --no-banner
+      - name: Trivy (dependencies, IaC, misconfiguration)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  # ---------------------------------------------------------------- database
+  db-tests:
+    name: DB · migrations + OSM import + pgTAP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fresh test database, fixture import, pgTAP, fixture dump
+        run: python3 tasks.py test-db
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fixture-dump
+          path: tests/fixtures/db/grid.sql
+      - name: Database logs
+        if: failure()
+        run: docker compose logs db
+
+  # ---------------------------------------------------------------- API
+  api-tests:
+    name: API · unit + integration (Testcontainers) + OpenAPI contract
+    needs: db-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: fixture-dump
+          path: tests/fixtures/db
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Database image for Testcontainers
+        run: docker build -q -t reach15-db:latest db
+      - name: Test
+        working-directory: api
+        run: ./gradlew test --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-api
+          path: |
+            api/build/reports/tests/
+            api/build/reports/jacoco/
+            api/build/test-results/
+
+  # ---------------------------------------------------------------- end to end
+  e2e:
+    name: E2E · Playwright + k6 on the production-like stack
+    needs: [db-tests, web-unit]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - name: Fixture DB + API/web/Martin containers + Playwright
+        run: python3 tasks.py e2e
+        env:
+          CI: "true"
+      - name: k6 latency budgets
+        uses: grafana/run-k6-action@v1
+        with:
+          path: tests/perf/api.js
+        env:
+          BASE_URL: http://localhost:8088
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-e2e
+          path: |
+            web/playwright-report/
+            web/test-results/
+      - name: Container logs
+        if: failure()
+        run: docker compose --profile app logs api web martin
