@@ -3,7 +3,7 @@ WORKDIR /src
 COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle gradle
 # Dependencies in their own layer: rebuilt only when the build script changes.
-RUN sed -i 's/\r$//' gradlew && ./gradlew --no-daemon -q dependencies > /dev/null
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew && ./gradlew --no-daemon -q dependencies > /dev/null
 COPY src src
 RUN ./gradlew --no-daemon -q bootJar
 
