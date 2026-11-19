@@ -11,3 +11,7 @@ RUN apt-get update \
         postgresql-17-h3 \
         postgresql-17-pgtap \
     && rm -rf /var/lib/apt/lists/*
+
+# The entrypoint supports a non-root start: the data directory and socket directory already
+# belong to postgres (uid 999 in the official image), and a fresh volume copies that ownership.
+USER 999:999

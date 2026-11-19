@@ -34,7 +34,7 @@ services:
       TILES_UPSTREAM: martin:3000
     networks: [core]
     ports:
-      - "127.0.0.1:${PORT:?}:80"
+      - "127.0.0.1:${PORT:?}:8080"
 
 networks:
   core:

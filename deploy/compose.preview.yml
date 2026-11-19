@@ -53,7 +53,7 @@ services:
       TILES_UPSTREAM: pr-tiles:3000
     networks: [default]
     ports:
-      - "127.0.0.1:${PORT:?}:80"
+      - "127.0.0.1:${PORT:?}:8080"
 
   # One-off tools (docker compose run): build reach15_pr_<n> with the PR's migrations and pipeline.
   flyway:

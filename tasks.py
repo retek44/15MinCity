@@ -31,10 +31,16 @@ TEST_DB = "reach15_test"
 FIXTURE_DUMP = ROOT / "tests" / "fixtures" / "db" / "grid.sql"
 
 
+# The ETL container runs as the host user, so what it writes to ./data belongs to them. On Windows
+# and macOS Docker Desktop maps bind mount ownership itself; the image's own uid is fine there.
+HOST_IDS = {"HOST_UID": str(os.getuid()), "HOST_GID": str(os.getgid())} if hasattr(os, "getuid") else {}
+
+
 def compose(*args: str, db: str = DEV_DB, env: dict[str, str] | None = None) -> None:
     cmd = ["docker", "compose", *args]
     print("+", " ".join(cmd), flush=True)
-    subprocess.run(cmd, env={**os.environ, "DB_NAME": db, **(env or {})}, check=True)
+    (ROOT / "data").mkdir(exist_ok=True)  # else Docker creates the bind mount source as root
+    subprocess.run(cmd, env={**os.environ, **HOST_IDS, "DB_NAME": db, **(env or {})}, check=True)
 
 
 E2E_ENV = {"APP_DB": TEST_DB, "MARTIN_CONFIG": "martin.e2e.yaml", "WEB_PORT": "8088"}

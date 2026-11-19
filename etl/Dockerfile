@@ -25,5 +25,9 @@ COPY reach15_etl ./reach15_etl
 RUN pip install --no-cache-dir .
 COPY lua ./lua
 
-ENV REACH15_LUA=/app/lua/reach15.lua
+# Not root. Writes go to /data, a bind mount: compose runs the container with the host user's
+# uid (HOST_UID), so downloads stay owned by whoever ran the pipeline. HOME for GDAL/pip caches.
+RUN useradd --system --uid 10001 --no-create-home etl
+ENV REACH15_LUA=/app/lua/reach15.lua     HOME=/tmp
+USER 10001
 ENTRYPOINT ["reach15-etl"]

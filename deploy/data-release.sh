@@ -12,6 +12,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# The ETL container runs as this user, so downloads and reports in ./data belong to them.
+export HOST_UID="$(id -u)" HOST_GID="$(id -g)"
+mkdir -p data
 core() { docker compose -p reach15-core "$@"; }
 psql_admin() { core exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres -c "$1"; }
 
