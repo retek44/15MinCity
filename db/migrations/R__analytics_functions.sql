@@ -352,10 +352,78 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
            + extract(minute FROM p_at)::int
 $$;
 
+-- Easter Sunday of a year (Gregorian calendar; anonymous algorithm, Meeus/Jones/Butcher).
+CREATE OR REPLACE FUNCTION analytics.easter_sunday(p_year integer)
+RETURNS date
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+DECLARE
+    a int := p_year % 19;
+    b int := p_year / 100;
+    c int := p_year % 100;
+    d int := b / 4;
+    e int := b % 4;
+    f int := (b + 8) / 25;
+    g int := (b - f + 1) / 3;
+    h int := (19 * a + b - d - g + 15) % 30;
+    i int := c / 4;
+    k int := c % 4;
+    l int := (32 + 2 * e + 2 * i - h - k) % 7;
+    m int := (a + 11 * h + 22 * l) / 451;
+    month int := (h + l - 7 * m + 114) / 31;
+    day int := ((h + l - 7 * m + 114) % 31) + 1;
+BEGIN
+    RETURN make_date(p_year, month, day);
+END
+$$;
+
+-- The Hungarian public holiday on a date (Labour Code, Mt. 102. §), as a key the UI translates,
+-- or NULL. 24 December is not on the list: a bill to add it was before Parliament in autumn
+-- 2026. Bridging days (moved working days) are not holidays; the BKK timetable models them.
+CREATE OR REPLACE FUNCTION analytics.hu_holiday(p_date date)
+RETURNS text
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+DECLARE
+    easter date := analytics.easter_sunday(extract(year FROM p_date)::int);
+BEGIN
+    RETURN CASE
+        WHEN to_char(p_date, 'MM-DD') = '01-01' THEN 'new_year'
+        WHEN to_char(p_date, 'MM-DD') = '03-15' THEN 'revolution_1848'
+        WHEN p_date = easter - 2 THEN 'good_friday'
+        WHEN p_date = easter THEN 'easter'
+        WHEN p_date = easter + 1 THEN 'easter_monday'
+        WHEN to_char(p_date, 'MM-DD') = '05-01' THEN 'labour_day'
+        WHEN p_date = easter + 49 THEN 'whit_sunday'
+        WHEN p_date = easter + 50 THEN 'whit_monday'
+        WHEN to_char(p_date, 'MM-DD') = '08-20' THEN 'state_foundation'
+        WHEN to_char(p_date, 'MM-DD') = '10-23' THEN 'revolution_1956'
+        WHEN to_char(p_date, 'MM-DD') = '11-01' THEN 'all_saints'
+        WHEN to_char(p_date, 'MM-DD') = '12-25' THEN 'christmas'
+        WHEN to_char(p_date, 'MM-DD') = '12-26' THEN 'christmas_2'
+    END;
+END
+$$;
+
+-- Is a place with these hours open at a local time? On a public holiday the holiday hours apply
+-- where the opening_hours value names PH; NULL when the hours are unknown.
+CREATE OR REPLACE FUNCTION analytics.is_open(
+    p_open_minutes int4multirange,
+    p_holiday_minutes int4multirange,
+    p_at timestamp)
+RETURNS boolean
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+    SELECT CASE
+        WHEN p_at IS NULL OR p_open_minutes IS NULL THEN NULL
+        WHEN p_holiday_minutes IS NOT NULL AND analytics.hu_holiday(p_at::date) IS NOT NULL
+            THEN p_holiday_minutes @> (extract(hour FROM p_at)::int * 60 + extract(minute FROM p_at)::int)
+        ELSE p_open_minutes @> analytics.minute_of_week(p_at)
+    END
+$$;
+
 -- Nearest POI of every category from the seeds, with travel time.
 --
 -- p_at: only places open at that local time count; places with unknown opening hours are kept
---   (most OSM shops have no opening_hours tag) and reported with open = NULL.
+--   (most OSM shops have no opening_hours tag) and reported with open = NULL. On a public
+--   holiday, holiday hours (PH) apply where they are mapped.
 CREATE OR REPLACE FUNCTION analytics.point_access_seeded(
     p_vertices bigint[],
     p_seconds double precision[],
@@ -369,8 +437,7 @@ BEGIN
     RETURN QUERY
     WITH candidates AS (
         SELECT pv.category, r.seconds, p.name, p.geom, p.opening_hours AS hours,
-               CASE WHEN p_at IS NULL OR h.poi_id IS NULL THEN NULL
-                    ELSE h.open_minutes @> analytics.minute_of_week(p_at) END AS open
+               analytics.is_open(h.open_minutes, h.holiday_minutes, p_at) AS open
         FROM analytics.reach_seeded(p_vertices, p_seconds, p_mode, p_max_seconds) r
         JOIN analytics.poi_vertex pv ON pv.vertex_id = r.node
         JOIN osm.pois p ON p.osm_type = pv.poi_type AND p.osm_id = pv.poi_id
@@ -409,7 +476,15 @@ CREATE OR REPLACE FUNCTION analytics.cell_scores(p_weights jsonb, p_mode text DE
 RETURNS TABLE (h3 h3index, district_id bigint, score double precision)
 LANGUAGE plpgsql STABLE AS $$
 BEGIN
-    PERFORM analytics.mode_speed(p_mode);
+    IF p_mode = 'transit' THEN
+        -- Precomputed per cell by the API (TransitHeatmap) after each data build.
+        IF NOT EXISTS (SELECT 1 FROM analytics.h3_category_time t WHERE t.mode = 'transit') THEN
+            RAISE EXCEPTION 'the public transport heatmap has not been computed for this data release'
+                USING ERRCODE = 'invalid_parameter_value';
+        END IF;
+    ELSE
+        PERFORM analytics.mode_speed(p_mode);
+    END IF;
     IF p_weights IS NULL OR jsonb_typeof(p_weights) <> 'object'
        OR NOT EXISTS (SELECT 1 FROM jsonb_each_text(p_weights) w WHERE w.value::double precision > 0) THEN
         RAISE EXCEPTION 'weights must be an object with at least one positive weight'

@@ -1,5 +1,6 @@
 package hu.reach15.api.support
 
+import hu.reach15.api.transit.TransitHeatmap
 import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -33,9 +34,23 @@ abstract class IntegrationTest {
 
     protected lateinit var http: RestClient
 
+    @Autowired
+    private lateinit var transitHeatmap: TransitHeatmap
+
     @BeforeEach
     fun client() {
         http = RestClient.builder().baseUrl("http://localhost:$port").build()
+        // The fixture dump has no public transport heatmap (the ETL does not compute it): compute
+        // it once per container, for Tuesday 2026-11-17, as the data release does after the build.
+        if (!heatmapReady) {
+            transitHeatmap.compute(java.time.LocalDate.parse("2026-11-17"))
+            heatmapReady = true
+        }
+    }
+
+    companion object {
+        @Volatile
+        private var heatmapReady = false
     }
 
     /** (lon, lat) of a grid vertex. */

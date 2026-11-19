@@ -46,7 +46,7 @@ class GeoApiIntegrationTest : IntegrationTest() {
             assertEquals(10, categories.size)
             assertTrue(hexagons.isNotEmpty())
             assertEquals(hexagons.size, hexagons.toSet().size)
-            for (mode in listOf("walk", "bike")) {
+            for (mode in listOf("walk", "bike", "transit")) {
                 assertEquals(categories.size, cells[mode].size())
                 cells[mode].items().forEach { column -> assertEquals(hexagons.size, column.size()) }
             }

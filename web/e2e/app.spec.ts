@@ -130,7 +130,43 @@ test("public transport: the tram reaches the far corner in 3 minutes on a weekda
   await expect(page.getByRole("radio", { name: /Transit/ })).toHaveAttribute("aria-checked", "true");
   await expect.poll(() => minutesFor(page, "pharmacy")).toBe("3 min"); // walking: 18 blocks = 23 min
   await expect(page.getByTestId("transit-note")).toContainText("Leaving Tue 08:00");
-  await expect(page.getByRole("figure")).toContainText("transit is per place");
+  await expect(page.getByRole("figure")).toContainText("transit, weekday 8:00");
+  // The heatmap and the ranking switch to the precomputed public transport times too.
+  await expect.poll(() => page.evaluate(() => window.__reach15!.heat?.mode)).toBe("transit");
+  await expect(page.getByTestId("ranking").getByRole("button", { name: /Test District/ })).toBeVisible();
+});
+
+test("public holidays: on Christmas afternoon the market keeps its holiday hours", async ({ page }) => {
+  await page.goto(link(GRID.v1000, "&t=2026-12-25T13:00"));
+  await expect(page.getByTestId("holiday-note")).toContainText("Christmas Day");
+  await expect.poll(() => minutesFor(page, "grocery")).toBe("30+ min");
+  await page.getByLabel("Date and time in Budapest").fill("2026-12-25T10:00");
+  await expect.poll(() => minutesFor(page, "grocery")).toBe("1 min");
+});
+
+test("compare places: pin two addresses and read their minutes side by side", async ({ page }) => {
+  await page.goto(link(GRID.v1000));
+  await expect(page.getByTestId("place-card")).toBeVisible();
+  await page.getByTestId("compare-add").click();
+  await expect(page.getByTestId("compare-add")).toHaveAttribute("aria-pressed", "true");
+
+  // A shared link restores the pinned place (a hash-only change does not reload the app).
+  await page.goto(link(GRID.v1044, "&c=47.50000,19.05000"));
+  await page.reload();
+  await expect(page.getByTestId("place-card")).toBeVisible();
+  await page.getByTestId("compare-add").click();
+  await expect(page).toHaveURL(/c=47\.50000,19\.05000;47\.50360,19\.05531/);
+
+  const table = page.getByTestId("compare").getByRole("table");
+  await expect(table.getByRole("columnheader")).toHaveCount(2);
+  const grocery = table.getByRole("row", { name: /Grocery/ });
+  await expect(grocery.getByRole("cell").first()).toHaveText(/1 min \(best\)/);
+  await expect(page.locator(".map-marker.compare")).toHaveCount(2);
+
+  await page.getByTestId("compare").getByRole("button", { name: /Remove .* from the comparison/ }).first().click();
+  await expect(table.getByRole("columnheader")).toHaveCount(1);
+  await page.getByRole("button", { name: "Clear comparison" }).click();
+  await expect(page.getByTestId("compare")).toBeHidden();
 });
 
 test("opening hours: on Sunday the only grocery is closed", async ({ page }) => {

@@ -2,7 +2,7 @@
 //
 //   python tasks.py pipeline && python tasks.py app      # http://localhost:8088
 //   node web/scripts/record-demo.mjs                       # writes docs/demo.webm
-//   ffmpeg -i docs/demo.webm -vf "fps=12,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer:bayer_scale=4" docs/demo.gif
+//   ffmpeg -ss 0.75 -i docs/demo.webm -vf "fps=8,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer:bayer_scale=4" docs/demo.gif
 import { chromium } from "@playwright/test";
 import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -38,56 +38,77 @@ async function search(text, option) {
 }
 
 // 1. The city-wide heatmap, then a place: score, minutes per category, 5/10/15-minute reach.
+//    Pin it to compare with the flats viewed later.
 await page.goto(BASE);
 await idle();
 await pause(1500);
 await search("deak ferenc ter", /Deák Ferenc tér 1052/);
 await page.getByTestId("score").waitFor();
 await idle();
-await pause(2500);
+await pause(2000);
+await page.getByTestId("compare-add").click();
+await pause(600);
 
 // 2. Re-weight for a family: the whole map recolours without a tile request.
 await page.getByRole("radio", { name: "Family with kids" }).click();
-await pause(2000);
+await pause(1800);
 
-// 3. Public transport, leaving on a weekday at 8:00.
+// 3. Public transport, leaving on a weekday at 8:00; the heatmap switches to transit too.
 await page.getByRole("radio", { name: "Weekday 8:00" }).click();
 await page.getByRole("radio", { name: /Transit/ }).click();
 await page.getByTestId("transit-note").waitFor();
 await idle();
-await pause(1500);
+await pause(1200);
 // Zoom out: by tram and metro the 15-minute reach runs along the lines.
-await page.evaluate(() => window.__reach15.map.easeTo({ zoom: 12.6, duration: 550 }));
+await page.evaluate(() => window.__reach15.map.easeTo({ zoom: 12.4, duration: 550 }));
+await idle();
+await pause(2500);
+
+// 4. Christmas morning on foot: holiday opening hours, and the holiday is named.
+await page.getByRole("radio", { name: /Walk/ }).click();
+await page.getByRole("radio", { name: "Pick a time" }).click();
+await page.getByLabel("Date and time in Budapest").fill("2026-12-25T11:00");
+await page.getByTestId("holiday-note").waitFor();
+await idle();
+await pause(2800);
+await page.getByRole("radio", { name: "Any time" }).click();
+
+// 5. By bike, city-wide: the Buda hills cost minutes (elevation model), flat Pest does not.
+await page.getByRole("button", { name: "Clear selection" }).click();
+await page.getByRole("radio", { name: /Bike/ }).click();
+await page.locator('[data-testid="compare"][aria-busy="false"]').waitFor();
+await page.evaluate(() => window.__reach15.map.easeTo({ center: [19.02, 47.505], zoom: 11.6, duration: 650 }));
 await idle();
 await pause(3000);
 
-// 4. Sunday evening: closed shops drop out.
-await page.getByRole("radio", { name: /Walk/ }).click();
-await page.getByRole("radio", { name: "Sunday 20:00" }).click();
-await pause(3000);
-await page.getByRole("radio", { name: "Any time" }).click();
-
-// 5. Where should we live? An office in Óbuda by transit, a school in Újbuda by bike.
+// 6. Two flats in view: pin both to compare, and ask where the household could live
+//    (an office in Óbuda by transit, a school in Újbuda by bike).
 const panel = page.getByTestId("common-ground");
 await search("becsi ut 100", /Bécsi út 100 1034/);
 await page.getByTestId("place-card").waitFor();
-await pause(800);
+await pause(700);
+await page.getByTestId("compare-add").click();
 await panel.getByRole("button", { name: "Add the selected point" }).click();
 await panel.getByLabel("Time limit to place A").selectOption("30");
 await search("bartok bela ut 50", /Bartók Béla út 50 1111/);
 await page.getByTestId("place-card").waitFor();
-await pause(800);
+await pause(700);
+await page.getByTestId("compare-add").click();
+await page.getByTestId("compare").locator("td.best").first().waitFor();
+await page.getByTestId("compare").scrollIntoViewIfNeeded();
+await pause(3200);
 await panel.getByRole("button", { name: "Add the selected point" }).click();
 await panel.getByLabel("Travel mode to place B").selectOption("bike");
 await panel.getByLabel("Time limit to place B").selectOption("20");
 await page.getByRole("button", { name: "Clear selection" }).click();
 await panel.getByTestId("spots").waitFor({ timeout: 60_000 });
+await panel.getByTestId("spots").scrollIntoViewIfNeeded();
 await idle();
-await pause(3500);
+await pause(3200);
 await panel.getByTestId("spots").getByRole("button").first().click();
 await page.getByTestId("score").waitFor();
 await idle();
-await pause(3500);
+await pause(3000);
 
 const video = page.video();
 await context.close();

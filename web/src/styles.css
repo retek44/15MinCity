@@ -647,6 +647,166 @@ button {
   cursor: pointer;
 }
 
+/* compare places */
+.compare h2 {
+  font-family: var(--num);
+  font-stretch: 75%;
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 5px 4px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.compare-table tbody th {
+  font-weight: 500;
+  color: var(--rail-muted);
+  width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-table tbody tr + tr {
+  border-top: 1px solid var(--rail-rule);
+}
+
+.compare-table td {
+  font-family: var(--num);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.compare-table td.best {
+  color: var(--saffron);
+  font-weight: 800;
+}
+
+.compare-score td {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.compared {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.compared-place {
+  display: grid;
+  grid-template-columns: 26px 1fr 28px;
+  align-items: center;
+  gap: 8px;
+}
+
+.compare-place {
+  min-width: 0;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--rail-ink);
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-place:hover {
+  background: var(--rail-deep);
+}
+
+.compare-remove {
+  width: 28px;
+  height: 28px;
+}
+
+.compare-remove svg {
+  width: 16px;
+  height: 16px;
+}
+
+.compare-skeleton {
+  width: 70%;
+  margin: 2px 0;
+}
+
+/* Compared places: a poppy square; "where should we live?" uses saffron squares and ink circles. */
+.compare-badge,
+.map-marker.compare {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--poppy);
+  color: #ffffff;
+  /* large text (19 px, heavy): white on poppy passes 3:1 */
+  font-size: 19px;
+  border-radius: 2px;
+}
+
+.map-marker.compare {
+  cursor: pointer;
+}
+
+.place-compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  margin: 10px 0 4px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.place-compare:hover:not(:disabled) {
+  background: var(--rule);
+}
+
+.place-compare:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.place-compare[aria-pressed="true"] {
+  border-color: var(--poppy);
+  color: var(--ink);
+}
+
+.place-compare svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* place panel: the time the answer is for */
 .place-when {
   font-size: 13px;

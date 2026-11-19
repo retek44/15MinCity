@@ -15,6 +15,7 @@ function cell(times: Record<string, number>): CellTimes {
     h3: ["89000000000ffff"],
     walk: categories.map((c) => [times[c]!]),
     bike: categories.map((c) => [times[c]! * 2]),
+    transit: categories.map((c) => [times[c]! / 2]),
   };
 }
 
@@ -43,7 +44,7 @@ describe("scoring", () => {
   });
 
   it("an unreachable category scores 0, not a perfect 100", () => {
-    const cells: CellTimes = { categories: ["grocery", "park"], h3: ["a", "b"], walk: [[0, null], [null, 0]], bike: [[], []] };
+    const cells: CellTimes = { categories: ["grocery", "park"], h3: ["a", "b"], walk: [[0, null], [null, 0]], bike: [[], []], transit: [[], []] };
     expect([...cellScores(cells, "walk", { grocery: 1, park: 1 })]).toEqual([50, 50]);
     expect([...cellScores(cells, "walk", { grocery: 1 })]).toEqual([100, 0]);
   });
@@ -57,5 +58,13 @@ describe("scoring", () => {
     const expr = JSON.stringify(heatColor(false));
     expect(expr).toContain('["feature-state","score"]');
     expect(expr).not.toContain('"get"');
+  });
+});
+
+describe("public transport heatmap", () => {
+  it("scores from the transit column", () => {
+    const cells = cell({ grocery: 900 });
+    expect(cellScores(cells, "walk", { grocery: 1 })[0]).toBeCloseTo(0);
+    expect(cellScores(cells, "transit", { grocery: 1 })[0]).toBeCloseTo(50);
   });
 });

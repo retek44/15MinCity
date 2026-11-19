@@ -189,6 +189,8 @@ export interface components {
              */
             at?: string | null;
             categories: components["schemas"]["CategoryAccess"][];
+            /** @description Hungarian public holiday on the day of `at` (or of the transit departure), e.g. easter_monday: holiday opening hours (PH) apply where mapped; null on other days */
+            holiday?: string | null;
             /** @enum {string} */
             mode: "walk" | "bike" | "transit";
             point: components["schemas"]["LonLat"];
@@ -237,6 +239,8 @@ export interface components {
             bike: number[][];
             categories: string[];
             h3: string[];
+            /** @description Walking and public transport, leaving at 08:00 on a weekday; all null until computed */
+            transit: number[][];
             walk: number[][];
         };
         CommonGroundResponse: {

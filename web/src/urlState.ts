@@ -1,7 +1,11 @@
 import type { Anchor, Mode } from "./api/client";
+import type { Pinned } from "./components/ComparePanel";
 import { isWhen, type When } from "./when";
 
-/** Shareable state in the URL hash: #p=47.49790,19.05460&m=bike&w=family&t=su20&a=47.5,19.04,transit,30 */
+/**
+ * Shareable state in the URL hash:
+ * #p=47.49790,19.05460&m=bike&w=family&t=su20&a=47.5,19.04,transit,30&c=47.51,19.06;47.48,19.02
+ */
 export interface UrlState {
   point?: { lon: number; lat: number };
   mode?: Mode;
@@ -9,6 +13,8 @@ export interface UrlState {
   when?: When;
   /** "Where should we live?" places. */
   anchors?: Anchor[];
+  /** Places pinned to compare. */
+  compare?: Pinned[];
 }
 
 const MODES: Mode[] = ["walk", "bike", "transit"];
@@ -40,6 +46,15 @@ export function parseUrlState(hash: string): UrlState {
       return [{ lat: Number(aLat), lon: Number(aLon), mode: aMode, minutes: m }];
     });
   if (anchors.length) state.anchors = anchors;
+  const compare = (params.get("c") ?? "")
+    .split(";")
+    .filter(Boolean)
+    .slice(0, 3)
+    .flatMap((part): Pinned[] => {
+      const [cLat, cLon] = part.split(",").map(Number);
+      return latLon(cLat, cLon) ? [{ lat: cLat!, lon: cLon! }] : [];
+    });
+  if (compare.length) state.compare = compare;
   return state;
 }
 
@@ -51,6 +66,9 @@ export function formatUrlState(state: UrlState): string {
   if (state.when && state.when !== "any") params.set("t", state.when);
   if (state.anchors?.length) {
     params.set("a", state.anchors.map((a) => `${a.lat.toFixed(5)},${a.lon.toFixed(5)},${a.mode},${a.minutes}`).join(";"));
+  }
+  if (state.compare?.length) {
+    params.set("c", state.compare.map((c) => `${c.lat.toFixed(5)},${c.lon.toFixed(5)}`).join(";"));
   }
   // Commas, colons and semicolons are legal in a fragment; keep shared links readable.
   const s = params.toString().replaceAll("%2C", ",").replaceAll("%3B", ";").replaceAll("%3A", ":");

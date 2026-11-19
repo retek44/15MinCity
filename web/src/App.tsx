@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { type Anchor, api, type CategoryId, type DistrictScore, heatMode, type Mode, type Persona, type Weights } from "./api/client";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { type Anchor, api, type CategoryId, type DistrictScore, type Mode, type Persona, type Weights } from "./api/client";
 import { CommonGroundPanel, LETTERS } from "./components/CommonGroundPanel";
+import { type Compared, ComparePanel, MAX_COMPARED, type Pinned } from "./components/ComparePanel";
 import { WhenPicker } from "./components/WhenPicker";
 import { formatAt, resolveWhen, type When } from "./when";
 import { DistrictRoster } from "./components/DistrictRoster";
@@ -65,10 +66,9 @@ export function App() {
   const [cellDistrictId, setCellDistrictId] = useState<number | null>();
   const [when, setWhen] = useState<When>(fromUrl.when ?? "any");
   const [anchors, setAnchors] = useState<Anchor[]>(fromUrl.anchors ?? []);
+  const [compare, setCompare] = useState<Pinned[]>(fromUrl.compare ?? []);
   /** The `at` sent to the API; presets resolve when chosen ("now" stays the time it was picked). */
   const at = useMemo(() => resolveWhen(when), [when]);
-  /** The heatmap and ranking are precomputed for walking and cycling; transit shows walking there. */
-  const heat = heatMode(mode);
   const t = strings[lang];
 
   useEffect(() => {
@@ -77,8 +77,8 @@ export function App() {
   }, [dark, lang]);
 
   useEffect(
-    () => writeUrlState({ point, mode, persona: personaId, when, anchors }),
-    [point, mode, personaId, when, anchors],
+    () => writeUrlState({ point, mode, persona: personaId, when, anchors, compare }),
+    [point, mode, personaId, when, anchors, compare],
   );
 
   const personas = useQuery({ queryKey: ["personas"], queryFn: api.personas, staleTime: Infinity });
@@ -124,19 +124,39 @@ export function App() {
     retry: false,
   });
   const ranking = useQuery({
-    queryKey: ["ranking", heat, weights],
-    queryFn: () => api.ranking(heat, weights),
+    queryKey: ["ranking", mode, weights],
+    queryFn: () => api.ranking(mode, weights),
     placeholderData: (previous) => previous,
   });
   const anchorKey = anchors.map(({ lon, lat, mode: m, minutes }) => [lon, lat, m, minutes]);
   const common = useQuery({
-    queryKey: ["common", anchorKey, heat, weights, at],
-    queryFn: () => api.commonGround(anchors, heat, weights, at),
+    queryKey: ["common", anchorKey, mode, weights, at],
+    queryFn: () => api.commonGround(anchors, mode, weights, at),
     enabled: anchors.length > 0,
     placeholderData: (previous) => previous,
     retry: false,
   });
   const commonData = anchors.length > 0 ? common.data : undefined;
+  // One access query per pinned place; the same key as the place panel's, so a pinned place
+  // that is also selected is fetched once.
+  const comparedQueries = useQueries({
+    queries: compare.map((p) => ({
+      queryKey: ["access", p.lon, p.lat, mode, weights, at],
+      queryFn: () => api.access(p.lon, p.lat, mode, weights, at),
+      placeholderData: (previous: Awaited<ReturnType<typeof api.access>> | undefined) => previous,
+      retry: false,
+    })),
+  });
+  // The address does not change with mode or time: remember it, so a pinned place keeps its name
+  // while its answer for a new mode loads (a new query key starts without placeholder data).
+  const compareLabels = useRef(new Map<string, string>());
+  const compared: Compared[] = compare.map((p, i) => {
+    const access = comparedQueries[i]?.data;
+    const key = `${p.lon},${p.lat}`;
+    if (access?.address?.label) compareLabels.current.set(key, access.address.label);
+    return { ...p, access, label: compareLabels.current.get(key), error: comparedQueries[i]?.error?.message };
+  });
+  const pinned = point && compare.some((p) => p.lon === point.lon && p.lat === point.lat);
 
   const markers: MapMarker[] = useMemo(
     () => [
@@ -154,8 +174,15 @@ export function App() {
         kind: "spot" as const,
         title: t.showSpot(n + 1),
       })),
+      ...compare.map((p, n) => ({
+        lon: p.lon,
+        lat: p.lat,
+        text: String(n + 1),
+        kind: "compare" as const,
+        title: t.compareMarker(n + 1),
+      })),
     ],
-    [anchors, commonData, t],
+    [anchors, commonData, compare, t],
   );
 
   const pois: PoiMarker[] = useMemo(
@@ -253,6 +280,15 @@ export function App() {
           </p>
         )}
 
+        <ComparePanel
+          t={t}
+          places={compared}
+          weights={weights}
+          onRemove={(i) => setCompare(compare.filter((_, j) => j !== i))}
+          onClear={() => setCompare([])}
+          onShow={(p) => setPoint({ ...p, fly: true })}
+        />
+
         <CommonGroundPanel
           t={t}
           anchors={anchors}
@@ -280,7 +316,7 @@ export function App() {
             of loading a plain one and swapping it, which reloaded every tile on start-up. */}
         {basemap.isFetched ? (
         <MapView
-          mode={heat}
+          mode={mode}
           weights={heatWeights}
           cells={cells.data}
           dark={dark}
@@ -302,7 +338,7 @@ export function App() {
         <Legend
           title={
             focusCategory
-              ? t.legendFocus(t.categories[focusCategory], t.modeName[heat])
+              ? t.legendFocus(t.categories[focusCategory], t.modeName[mode])
               : mode === "transit"
                 ? t.legendTransit(profileName)
                 : t.legendTitle(modeName, profileName)
@@ -324,6 +360,8 @@ export function App() {
             focusCategory={focusCategory}
             onFocusCategory={setFocusCategory}
             onClear={clear}
+            compare={pinned ? "added" : compare.length >= MAX_COMPARED ? "full" : "add"}
+            onCompare={() => point && setCompare([...compare, { lon: point.lon, lat: point.lat }])}
           />
         )}
       </main>

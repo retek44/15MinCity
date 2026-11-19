@@ -83,3 +83,23 @@ def test_unsupported_values_are_unknown(value):
 def test_multirange_literal():
     assert hours.multirange([(0, 600), (720, 1200)]) == "{[0,600),[720,1200)}"
     assert hours.multirange([]) == "{}"
+
+
+def test_public_holiday_hours():
+    assert hours.parse_holiday("Mo-Sa 07:00-21:00; Su,PH off") == []
+    assert hours.parse_holiday("Mo-Fr 08:00-20:00; PH 10:00-14:00") == [(600, 840)]
+    # PH in a day list gets that rule's hours; the weekly hours are unchanged.
+    weekdays = [(at(d, 8), at(d, 18)) for d in range(5)]
+    assert hours.parse_all("Mo-Fr,PH 08:00-18:00") == (weekdays, [(480, 1080)])
+    # A later rule replaces the holiday hours, as it does for weekdays.
+    assert hours.parse_holiday("PH off; Mo-Su,PH 09:00-12:00") == [(540, 720)]
+    assert hours.parse_holiday("PH 22:00-02:00; Mo-Fr 08:00-20:00") == [(1320, 1560)]
+
+
+def test_values_without_ph_keep_their_weekly_hours_on_holidays():
+    assert hours.parse_holiday("Mo-Fr 08:00-20:00") is None
+    assert hours.parse_holiday("SH off; Mo-Fr 08:00-20:00") is None
+    assert hours.parse_holiday("24/7") is None
+    assert hours.parse_holiday("PH off; 24/7") is None  # 24/7 covers holidays too
+    assert hours.parse_holiday("24/7; PH off") == []
+    assert hours.parse_holiday("PH off") is None  # no weekly hours at all: unsupported

@@ -23,7 +23,7 @@ from pathlib import Path
 import psycopg
 from psycopg.types.json import Jsonb
 
-from . import drift, gtfs, hours, quality
+from . import drift, elevation, gtfs, hours, quality
 from .fixtures import build_grid_fixture, build_gtfs_fixture
 
 log = logging.getLogger("reach15")
@@ -101,6 +101,12 @@ def cmd_gtfs_download(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dem_download(args: argparse.Namespace) -> int:
+    bbox = tuple(float(v) for v in args.bbox.split(","))
+    elevation.download(args.data_dir, bbox)  # type: ignore[arg-type]
+    return 0
+
+
 def cmd_gtfs(args: argparse.Namespace) -> int:
     start = time.perf_counter()
     with connect() as conn:
@@ -110,19 +116,23 @@ def cmd_gtfs(args: argparse.Namespace) -> int:
 
 
 def load_opening_hours(conn: psycopg.Connection) -> dict[str, int]:
-    """Parses osm.pois.opening_hours into analytics.poi_hours (minutes of the week)."""
+    """Parses osm.pois.opening_hours into analytics.poi_hours (minutes of the week, plus
+    minutes of a public holiday where the value names PH)."""
     known = unsupported = 0
     with conn.cursor() as read, conn.cursor() as write:
         write.execute("TRUNCATE analytics.poi_hours")
         read.execute("SELECT osm_type, osm_id, opening_hours FROM osm.pois WHERE opening_hours IS NOT NULL")
         rows = read.fetchall()
-        with write.copy("COPY analytics.poi_hours (poi_type, poi_id, open_minutes) FROM STDIN") as copy:
+        copy_sql = "COPY analytics.poi_hours (poi_type, poi_id, open_minutes, holiday_minutes) FROM STDIN"
+        with write.copy(copy_sql) as copy:
             for osm_type, osm_id, value in rows:
-                intervals = hours.parse(value)
-                if intervals is None:
+                parsed = hours.parse_all(value)
+                if parsed is None:
                     unsupported += 1
                     continue
-                copy.write_row((osm_type, osm_id, hours.multirange(intervals)))
+                weekly, holiday = parsed
+                holiday_range = None if holiday is None else hours.multirange(holiday)
+                copy.write_row((osm_type, osm_id, hours.multirange(weekly), holiday_range))
                 known += 1
     return {"known": known, "unsupported": unsupported}
 
@@ -182,6 +192,9 @@ def cmd_build(args: argparse.Namespace) -> int:
             return conn.execute(sql, params).fetchone()
 
         graph = timed(timings, "build_graph", lambda: scalar("SELECT * FROM routing.build_graph()"))
+        elevated = 0
+        if args.dem:
+            elevated = timed(timings, "elevation", lambda: elevation.load(conn, args.dem))
         timed(timings, "snap_sources", lambda: scalar("SELECT routing.snap_sources()")[0])
         opening = timed(timings, "opening_hours", lambda: load_opening_hours(conn))
         if scalar("SELECT EXISTS (SELECT 1 FROM transit.stops)")[0]:
@@ -202,7 +215,11 @@ def cmd_build(args: argparse.Namespace) -> int:
 
         report = quality.collect(
             conn,
-            extra={"skipped_ways": graph[2], "opening_hours_unsupported": opening["unsupported"]},
+            extra={
+                "skipped_ways": graph[2],
+                "opening_hours_unsupported": opening["unsupported"],
+                "elevation_edges": elevated,
+            },
         )
         conn.execute(
             """
@@ -285,6 +302,11 @@ def parser() -> argparse.ArgumentParser:
     gd.add_argument("--url", default=BKK_GTFS_URL)
     gd.set_defaults(fn=cmd_gtfs_download)
 
+    dd = sub.add_parser("dem-download", help="read the Budapest window of the Copernicus DEM into --data-dir")
+    dd.add_argument("--data-dir", default="/data")
+    dd.add_argument("--bbox", default=BUDAPEST_BBOX)
+    dd.set_defaults(fn=cmd_dem_download)
+
     g = sub.add_parser("gtfs", help="import a GTFS feed (zip or directory) into the transit schema")
     g.add_argument("feed")
     g.set_defaults(fn=cmd_gtfs)
@@ -292,6 +314,7 @@ def parser() -> argparse.ArgumentParser:
     def add_build_args(sp: argparse.ArgumentParser) -> None:
         sp.add_argument("--modes", default="walk,bike", help="comma separated: walk,bike")
         sp.add_argument("--h3-resolution", type=int, default=9)
+        sp.add_argument("--dem", help="elevation model (GeoTIFF) for hill-aware cycling costs")
 
     i = sub.add_parser("import", help="load an OSM file with osm2pgsql")
     i.add_argument("file")

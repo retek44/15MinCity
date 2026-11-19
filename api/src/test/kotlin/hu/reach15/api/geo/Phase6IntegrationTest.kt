@@ -62,8 +62,8 @@ class Phase6IntegrationTest : IntegrationTest() {
         }
 
         @Test
-        fun `the ranking is precomputed for walk and bike only`() {
-            assertEquals(HttpStatus.BAD_REQUEST, status("/api/v1/districts/ranking?mode=transit"))
+        fun `the ranking also covers public transport`() {
+            assertEquals(HttpStatus.OK, status("/api/v1/districts/ranking?mode=transit"))
         }
     }
 

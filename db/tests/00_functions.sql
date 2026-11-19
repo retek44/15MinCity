@@ -1,6 +1,6 @@
 -- Unit tests for pure SQL functions (no OSM data needed).
 BEGIN;
-SELECT plan(24);
+SELECT plan(25);
 
 CREATE FUNCTION pg_temp.near(got double precision, want double precision, tol double precision DEFAULT 1e-6)
 RETURNS boolean LANGUAGE sql AS $$ SELECT abs(got - want) <= tol $$;
@@ -19,6 +19,8 @@ SELECT ok(pg_temp.near((routing.bike_costs(150, 'footway', '{"bicycle":"designat
 SELECT is((routing.bike_costs(100, 'steps', '{}')).cost, -1::float8, 'bike: no steps (forward)');
 SELECT is((routing.bike_costs(100, 'steps', '{}')).reverse_cost, -1::float8, 'bike: no steps (reverse)');
 SELECT is((routing.bike_costs(100, 'path', '{"bicycle":"no"}')).cost, -1::float8, 'bike: bicycle=no is respected');
+SELECT ok(pg_temp.near((routing.bike_costs(110, 'pedestrian', '{"bicycle":"no"}')).cost, 100),
+          'bike: pushed through pedestrian streets with bicycle=no');
 SELECT is((routing.bike_costs(100, 'residential', '{"oneway":"yes"}')).reverse_cost, -1::float8,
           'bike: oneway=yes blocks the reverse direction');
 SELECT is((routing.bike_costs(100, 'residential', '{"oneway":"-1"}')).cost, -1::float8,

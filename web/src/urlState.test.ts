@@ -34,6 +34,19 @@ describe("url state", () => {
     ]);
   });
 
+  it("round-trips up to three compared places and drops the rest", () => {
+    const compare = [
+      { lat: 47.51, lon: 19.06 },
+      { lat: 47.48, lon: 19.02 },
+      { lat: 47.5, lon: 19.1 },
+    ];
+    const hash = formatUrlState({ compare });
+    expect(hash).toBe("#c=47.51000,19.06000;47.48000,19.02000;47.50000,19.10000");
+    expect(parseUrlState(hash).compare).toEqual(compare);
+    expect(parseUrlState(`${hash};47.4,19.0`).compare).toHaveLength(3);
+    expect(parseUrlState("#c=47.5,19.0;nope;95,19").compare).toEqual([{ lat: 47.5, lon: 19 }]);
+  });
+
   it("omits defaults", () => {
     expect(formatUrlState({ mode: "walk", persona: "balanced", when: "any", anchors: [] })).toBe("");
   });
@@ -45,6 +58,7 @@ describe("url state", () => {
     ["#w=<script>", {}],
     ["#t=yesterday", {}],
     ["#a=x", {}],
+    ["#c=x", {}],
     ["", {}],
   ])("ignores invalid input %s", (hash, expected) => {
     expect(parseUrlState(hash)).toEqual(expected);

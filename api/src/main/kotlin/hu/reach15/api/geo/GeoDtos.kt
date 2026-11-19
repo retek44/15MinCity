@@ -67,6 +67,11 @@ data class AccessResponse(
     @get:Schema(description = "Local time (Europe/Budapest) whose opening hours were applied; null when none was requested")
     val at: LocalDateTime? = null,
     val transit: TransitSummary? = null,
+    @get:Schema(
+        description = "Hungarian public holiday on the day of `at` (or of the transit departure), e.g. " +
+            "easter_monday: holiday opening hours (PH) apply where mapped; null on other days",
+    )
+    val holiday: String? = null,
 )
 
 data class TransitSummary(
@@ -132,4 +137,6 @@ data class CellTimes(
     val h3: List<String>,
     val walk: List<List<Int?>>,
     val bike: List<List<Int?>>,
+    @get:Schema(description = "Walking and public transport, leaving at 08:00 on a weekday; all null until computed")
+    val transit: List<List<Int?>>,
 )

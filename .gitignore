@@ -26,3 +26,10 @@ api/.kotlin/
 # Demo recording scratch (docs/demo.gif is kept)
 docs/.video/
 docs/demo.webm
+
+# Web: dependencies, build output, test reports (rebuilt by npm ci / vite build / the test runs)
+web/node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/
+*.tsbuildinfo

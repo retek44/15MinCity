@@ -6,7 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // bundling (production builds 404 on the worker). Emit the worker as an asset and point at it.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef } from "react";
-import type { CellTimes, HeatMode, IsochroneCollection, Weights } from "../api/client";
+import type { CellTimes, Mode, IsochroneCollection, Weights } from "../api/client";
 import { cellScores, heatColor } from "../scoring";
 import { BUDAPEST_BOUNDS, baseStyle, firstSymbolLayer, h3Source, INITIAL_VIEW } from "./style";
 
@@ -33,12 +33,12 @@ export interface MapMarker {
   lon: number;
   lat: number;
   text: string;
-  kind: "anchor" | "spot";
+  kind: "anchor" | "spot" | "compare";
   title: string;
 }
 
 interface Props {
-  mode: HeatMode;
+  mode: Mode;
   /** Weights the heatmap is coloured by (the profile, or one focused category). */
   weights: Weights;
   /** Travel times of every hexagon; the map scores them and paints the scores. */
@@ -63,7 +63,7 @@ interface Props {
 declare global {
   interface Window {
     /** Exposed for end-to-end tests: map state is asserted, not pixels. */
-    __reach15?: { map: MlMap; heat?: { mode: HeatMode; categories: string[]; cells: number } };
+    __reach15?: { map: MlMap; heat?: { mode: Mode; categories: string[]; cells: number } };
   }
 }
 
@@ -417,7 +417,7 @@ export function MapView(props: Props) {
       el.textContent = m.text;
       el.title = m.title;
       el.setAttribute("aria-hidden", "true");
-      if (m.kind === "spot") {
+      if (m.kind !== "anchor") {
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           propsRef.current.onSelect({ lon: m.lon, lat: m.lat });

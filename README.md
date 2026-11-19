@@ -39,8 +39,8 @@ every layer has its own suite, and the CI/CD pipeline gates both code releases a
 | Component | Stack | Notes |
 |---|---|---|
 | `db/` | PostgreSQL 17, PostGIS 3, pgRouting 4, h3-pg, pgTAP | Flyway `V*` schema and `R__*` repeatable SQL functions |
-| `etl/` | Python 3.13, osm2pgsql 2 (flex Lua), osmium, pmtiles CLI | download, import, GTFS import, opening-hours parser, build, quality gates, score drift, fixture generator |
-| `api/` | Kotlin 2.4, Spring Boot 4, Jackson 3, springdoc, Caffeine | thin layer over SQL functions plus RAPTOR (public transport); RFC 9457 problem details |
+| `etl/` | Python 3.13, osm2pgsql 2 (flex Lua), osmium, pmtiles CLI, rasterio | download, import, GTFS import, opening-hours parser, elevation (DEM), build, quality gates, score drift, fixture generator |
+| `api/` | Kotlin 2.4, Spring Boot 4, Jackson 3, springdoc, Caffeine | thin layer over SQL functions plus RAPTOR (public transport, per place and as a heatmap batch job); RFC 9457 problem details |
 | `tiles/` | Martin | `analytics.h3_tiles(z, x, y)` function source + PMTiles basemap |
 | `web/` | React 19, Vite, MapLibre GL 6, @protomaps/basemaps, openapi-typescript | scores every hexagon in the browser, painted through feature state |
 | `deploy/` | Docker Compose, Caddy | blue/green for the app, rename-swap for the data |
@@ -51,10 +51,11 @@ every layer has its own suite, and the CI/CD pipeline gates both code releases a
 |---|---|
 | `GET /api/v1/search?q=` | addresses, streets and places; accent- and abbreviation-insensitive (`andrassy u 1`, `nyugati pu`) |
 | `GET /api/v1/reverse?lon=&lat=` | nearest address |
-| `GET /api/v1/access?lon=&lat=&mode=&persona=&weights=&at=` | score 0–100, travel time and nearest place per category; `mode=transit` rides BKK's timetable, `at` (local time) keeps only places open then |
+| `GET /api/v1/access?lon=&lat=&mode=&persona=&weights=&at=` | score 0–100, travel time and nearest place per category; `mode=transit` rides BKK's timetable, `at` (local time) keeps only places open then, and names a public holiday |
 | `GET /api/v1/isochrone?lon=&lat=&mode=&minutes=5,10,15&at=` | GeoJSON multipolygons (walk, bike, or transit leaving at `at`) |
 | `GET /api/v1/common-ground?places=lon,lat,mode,minutes;...` | "where should we live?": the area from which up to 4 places are each reachable in their own limit, and the best-scoring spots inside |
-| `GET /api/v1/districts/ranking?mode=&persona=&weights=` | districts ranked by mean H3 cell score (area-weighted, not population-weighted), with p25/p75 |
+| `GET /api/v1/districts/ranking?mode=&persona=&weights=` | districts ranked by mean H3 cell score (area-weighted, not population-weighted), with p25/p75; walk, bike, or transit (weekday 08:00) |
+| `GET /api/v1/cells` | every heatmap hexagon's travel times per category, column by column, for walk, bike and transit; the browser scores them |
 | `GET /api/v1/categories`, `/personas`, `/meta` | reference data and the active data release |
 
 The contract is [`openapi/openapi.json`](openapi/openapi.json); the front end's types are generated from it.
@@ -88,6 +89,8 @@ towards them. The synthetic grid catches this: 168 s is correct, 120 s means the
 | Transit (BKK: 5.8k stops, 40k weekday trips) | | timetable load 2.9 s per service day, then access ~0.8 s, isochrone ~1 s | RAPTOR over flat arrays; one seeded Dijkstra for every walk-on |
 | Common ground (2 places) | | walk + bike ~1.2 s, with a transit place ~4 s (cold) | one seeded search per place, H3 intersection |
 | GTFS import + opening hours | | 48 s + 0.1 s | 5.8M stop times via COPY; 5,174 of 5,326 `opening_hours` values parsed |
+| Transit heatmap (8.5k cells, weekday 08:00) | | 7-8.5 s | in-memory walking graph + RAPTOR per cell, in parallel; the walk on from each stop is a precomputed lookup |
+| Elevation (Copernicus DEM, 259k edges) | raw surface model: flat District V cycling +48 % over flat, more than hilly XII (+30 %) | ground model + 1 m hysteresis: 26 s; V +10 %, XII +19 % | roofs between narrow streets read as climbs until filtered out |
 | Heatmap tiles (z11, 1,400 hexagons) | travel times as tile properties: 157 kB (88 kB gzip) | shape + district only: 69 kB (18 kB gzip) | times load once per release from `/api/v1/cells` (290 kB zstd) |
 | Re-weighting the map (persona, slider) | data-driven paint expression: every tile re-parsed | scores as feature state: 40-50 ms to a finished frame | no tile is read again |
 | Click on the map | camera padding shifted the map 196 px; clicks near the left edge also zoomed to the point; ~190 ms shader compile | map stays put (pans only if the panel covers the point); shaders compiled at start-up | measured with `web/scripts/profile.mjs` and `check-motion.mjs` |
@@ -116,20 +119,21 @@ Decision records: [routing inside PostGIS](docs/adr/0001-routing-inside-postgis.
 [H3 isochrones](docs/adr/0002-h3-isochrones.md), [client-side scoring](docs/adr/0003-client-side-scoring.md),
 [blue/green for code and data](docs/adr/0004-blue-green-code-and-data.md),
 [transit with RAPTOR and seeded search](docs/adr/0005-transit-raptor-and-seeded-search.md),
-[preview environments](docs/adr/0006-preview-environments.md).
+[preview environments](docs/adr/0006-preview-environments.md),
+[transit heatmap, hills, holidays](docs/adr/0007-transit-heatmap-hills-holidays.md).
 
 ## Testing strategy
 
 | Layer | Tool | Count | What it proves |
 |---|---|---|---|
-| SQL functions | pgTAP | 119 | cost model (walk/bike, oneway, steps), scoring, search normalisation and ranking, isochrone geometry, seeded search, opening hours, GTFS calendars, common ground, input validation (SQLSTATE 22023) |
+| SQL functions | pgTAP | 139 | cost model (walk/bike, oneway, steps, hills), public holidays and holiday hours, scoring, search normalisation and ranking, isochrone geometry, seeded search, opening hours, GTFS calendars, common ground, input validation (SQLSTATE 22023) |
 | OSM mapping, graph, precompute | pgTAP on the synthetic grid | (incl.) | Lua rules; ways split at junctions; snapping never targets an island; every vertex matches its hand-computed Manhattan time |
-| ETL | pytest + ruff | 40 | fixture generators (OSM + GTFS), opening_hours parser, quality gates, score-drift gate |
-| API | JUnit 5 + Testcontainers | 51 | RAPTOR on hand-made timetables; real PostGIS image restored from the fixture dump: endpoints, tram timetable, opening hours, common ground, error mapping, caching |
+| ETL | pytest + ruff | 47 | fixture generators (OSM + GTFS), opening_hours parser (incl. `PH`), elevation profiles, quality gates, score-drift gate |
+| API | JUnit 5 + Testcontainers | 56 | RAPTOR on hand-made timetables; real PostGIS image restored from the fixture dump: endpoints, tram timetable, transit heatmap, opening hours and holidays, common ground, error mapping, caching |
 | API contract | snapshot test | 1 | `openapi/openapi.json` matches the running API (`./gradlew test -PupdateSnapshots` to accept) |
 | Front-end types | CI drift check | | `src/api/schema.d.ts` regenerated from the contract must not differ |
-| Front end | Vitest | 47 | scoring vectors, per-hexagon scores, URL state, "when?" presets across time zones and DST, components |
-| End to end | Playwright + axe-core | 14 | production images (Caddy + API + Martin) on the fixture DB; desktop and mobile; no serious a11y violations |
+| Front end | Vitest | 50 | scoring vectors, per-hexagon scores (walk, bike, transit), URL state (incl. compared places), "when?" presets across time zones and DST, components |
+| End to end | Playwright + axe-core | 16 | production images (Caddy + API + Martin) on the fixture DB; desktop and mobile; no serious a11y violations |
 | Performance | k6 | | p95 budgets per endpoint; fixture in CI, real Budapest data on staging |
 | Release (data) | quality gates + drift gate | | graph health, coverage, and < 5 % of cells moving > 10 points vs production |
 | Supply chain | hadolint, gitleaks, Trivy, cosign | | Dockerfile lint, secret scan, critical CVEs, signed images with SBOM + provenance |
@@ -192,7 +196,8 @@ Real Budapest data:
 python tasks.py download    # Hungary extract from Geofabrik (~350 MB), cut to Budapest
 python tasks.py basemap     # Budapest basemap from the latest Protomaps build (PMTiles)
 python tasks.py gtfs        # BKK public transport timetable (GTFS, ~60 MB)
-python tasks.py pipeline    # import + GTFS + graph + precompute + opening hours + search index
+python tasks.py dem         # Copernicus elevation, Budapest window (optional: hill-aware cycling)
+python tasks.py pipeline    # import + GTFS + DEM + graph + precompute + opening hours + search index + transit heatmap
 python tasks.py app         # API + web + tiles in containers: http://localhost:8088
 python tasks.py down        # stop (add --volumes to drop the data)
 ```
@@ -211,8 +216,11 @@ For front-end development run `python tasks.py api` and `npm run dev` in `web/` 
 - [x] **Phase 4, front end:** React + MapLibre GL, client-side re-weighting, personas, EN/HU, light/dark, shareable URLs, Playwright + axe
 - [x] **Phase 5, delivery:** signed multi-arch images, staging + approval-gated production, blue/green deploy, k6 budgets, weekly data release with an atomic database swap
 - [x] **Phase 6, extensions:** "where should we live?" (intersection of several people's reach, best spots inside), opening hours, transit routing (RAPTOR over BKK GTFS), preview environments per PR
+- [x] **Phase 7, depth:** public transport heatmap and ranking (RAPTOR per H3 cell), hill-aware cycling (Copernicus DEM), Hungarian public holidays in "When?", compare up to three places side by side
 
 ## Data and licence
 
 Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), available under the
-Open Database Licence (ODbL). Public transport timetable: [BKK](https://bkk.hu/) open data (GTFS). Basemap tiles from [Protomaps](https://protomaps.com) builds of OpenStreetMap.
+Open Database Licence (ODbL). Public transport timetable: [BKK](https://bkk.hu/) open data (GTFS). Elevation: produced using
+Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided
+under COPERNICUS by the European Union and ESA; all rights reserved. Basemap tiles from [Protomaps](https://protomaps.com) builds of OpenStreetMap.

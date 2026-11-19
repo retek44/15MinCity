@@ -107,7 +107,11 @@ def build_grid_fixture() -> str:
         5001,
         0,
         0,
-        {"shop": "supermarket", "name": "Corner Market", "opening_hours": "Mo-Sa 07:00-21:00; Su off"},
+        {
+            "shop": "supermarket",
+            "name": "Corner Market",
+            "opening_hours": "Mo-Sa 07:00-21:00; Su off; PH 08:00-12:00",
+        },
     )
     b.node(
         5002, last * s, last * s, {"amenity": "pharmacy", "name": "Grid Pharmacy", "opening_hours": "24/7"}

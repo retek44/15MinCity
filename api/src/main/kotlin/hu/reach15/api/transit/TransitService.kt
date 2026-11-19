@@ -2,6 +2,7 @@ package hu.reach15.api.transit
 
 import com.github.benmanes.caffeine.cache.Caffeine
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.cache.annotation.Cacheable
@@ -40,7 +41,11 @@ data class TransitSeeds(
  * (database again, one Dijkstra from all of them).
  */
 @Service
-class TransitService(private val jdbc: JdbcClient) {
+class TransitService(
+    private val jdbc: JdbcClient,
+    /** Set when the image runs a batch job (TransitHeatmap) instead of serving. */
+    @Value("\${reach15.precompute:}") private val precompute: String,
+) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     /** Timetables are ~10-30 MB for Budapest; keep a few service days. */
@@ -56,6 +61,7 @@ class TransitService(private val jdbc: JdbcClient) {
      */
     @EventListener(ApplicationReadyEvent::class)
     fun preload() {
+        if (precompute.isNotEmpty()) return
         Thread.ofVirtual().name("timetable-preload").start {
             val today = now().toLocalDate()
             for (date in listOf(today, today.plusDays(1))) {

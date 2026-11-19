@@ -7,7 +7,7 @@ name = "reach15-etl"
 version = "0.1.0"
 description = "OpenStreetMap import and accessibility precomputation for Reach15"
 requires-python = ">=3.11"
-dependencies = ["psycopg[binary]>=3.2"]
+dependencies = ["psycopg[binary]>=3.2", "rasterio>=1.4"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]

@@ -131,6 +131,7 @@ class GeoController(
             categories = categories,
             at = time,
             transit = summary,
+            holiday = (time ?: summary?.departure)?.let { repo.holiday(it.toLocalDate()) },
         )
     }
 
@@ -140,7 +141,7 @@ class GeoController(
         @RequestParam(defaultValue = "walk") mode: String,
         @RequestParam(defaultValue = "balanced") persona: String,
         @RequestParam(required = false) weights: String?,
-    ): List<DistrictScore> = repo.districtRanking(resolveWeights(persona, weights), precomputed(Mode.parse(mode)))
+    ): List<DistrictScore> = repo.districtRanking(resolveWeights(persona, weights), Mode.parse(mode))
 
     @Operation(
         summary = "Where should we live? The area from which every place can be reached in its own limit",
@@ -179,7 +180,7 @@ class GeoController(
                     "max_seconds" to budget,
                 )
             }
-        val result = repo.commonGround(json, resolveWeights(persona, weights), precomputed(Mode.parse(mode)), limit)
+        val result = repo.commonGround(json, resolveWeights(persona, weights), Mode.parse(mode), limit)
         return CommonGroundResponse(
             anchors = anchors,
             area = result.area,
@@ -202,11 +203,6 @@ class GeoController(
 
     private fun resolveWeights(persona: String, weights: String?): Weights =
         if (weights.isNullOrBlank()) personas.find(persona).weights else Weights.parse(weights)
-
-    private fun precomputed(mode: Mode): Mode {
-        require(mode.precomputed) { "the heatmap and ranking are precomputed for walk and bike only" }
-        return mode
-    }
 
     /** ~1 m precision: nearby clicks share cache entries. */
     private fun snap(coordinate: Double): Double = round(coordinate * 100_000) / 100_000

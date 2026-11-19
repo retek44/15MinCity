@@ -2,7 +2,8 @@
 # Weekly data release ("blue/green for data").
 #
 # Builds the next release into a separate database, gates it, and swaps it in:
-#   1. download the latest OSM extract and GTFS timetable, migrate + import + precompute into reach15_next
+#   1. download the latest OSM extract, GTFS timetable and DEM, migrate + import + precompute into
+#      reach15_next, then the public transport heatmap (the API image, with the release's TAG)
 #   2. quality gates (inside `etl run`) and score drift against production (`etl drift`)
 #   3. swap: reach15 -> reach15_prev, reach15_next -> reach15 (a few seconds of reconnects)
 #   4. restart the tile server so it drops cached tiles; API caches expire within the hour
@@ -34,7 +35,10 @@ psql_admin "CREATE DATABASE reach15_next;"
 DB_NAME=reach15_next core run --rm flyway
 DB_NAME=reach15_next core run --rm etl download --refresh
 DB_NAME=reach15_next core run --rm etl gtfs-download                   # BKK timetable (GTFS)
-DB_NAME=reach15_next core run --rm etl run /data/budapest.osm.pbf   --gtfs /data/budapest_gtfs.zip                                         # fails on quality gates
+DB_NAME=reach15_next core run --rm etl dem-download                    # Copernicus DEM, Budapest window
+DB_NAME=reach15_next core run --rm etl run /data/budapest.osm.pbf   --gtfs /data/budapest_gtfs.zip --dem /data/budapest-dem.tif                                         # fails on quality gates
+# Public transport heatmap: RAPTOR per H3 cell, run by the API image against the new database.
+docker run --rm --network reach15-core_default   -e REACH15_DB_URL=jdbc:postgresql://db:5432/reach15_next   -e REACH15_DB_USER="$POSTGRES_USER" -e REACH15_DB_PASSWORD="$POSTGRES_PASSWORD"   "$REGISTRY/api:$TAG" --spring.main.web-application-type=none --reach15.precompute=transit-heatmap
 DB_NAME=reach15_next core run --rm etl drift --baseline reach15 --candidate reach15_next \
   --report "/data/drift-$(date +%F).json"                                # fails on score drift
 

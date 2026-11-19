@@ -42,16 +42,20 @@ own priorities, across the whole city at once. Data is open (OpenStreetMap) and 
 ## Capabilities and Constraints
 
 - Ten categories: grocery, pharmacy, doctor, school, kindergarten, park, transit, food, gym, library.
-- Three modes: walk, bike and public transport (BKK timetable, RAPTOR; per place only, the heatmap
-  and ranking stay walk/bike). Five personas: balanced, family, student, senior, active; plus custom weights.
+- Three modes: walk, bike (hill-aware: Copernicus elevation, slower uphill) and public transport
+  (BKK timetable, RAPTOR: per place at any time; the heatmap and ranking for a weekday 08:00
+  departure). Five personas: balanced, family, student, senior, active; plus custom weights.
 - Score 0–100: per category `clamp(1 - seconds / 900, 0, 1)`, weighted mean. 15 minutes = 0 for that category.
 - Heatmap: H3 resolution-9 hexagons; their raw times per category load once per release and
   are scored client-side (no request and no tile re-read when weights change).
 - District ranking (23 districts), mean cell score with p25/p75.
 - "When?": a local time filters places by OSM opening hours (unknown hours count as open and are
-  labelled) and sets the public transport departure. Public holidays are not modelled.
+  labelled) and sets the public transport departure. Hungarian public holidays apply mapped
+  holiday hours (`PH`) and are named in the place panel.
 - "Where should we live?": up to four places with their own mode and limit; the common area and the
   best-scoring spots inside.
+- Compare places: up to three pinned addresses side by side (score and minutes per category, best
+  marked), shared in the link (`c=`).
 - Coverage: Budapest only. No real-time transit, no housing prices or listings.
 - UI languages: English and Hungarian, both complete. Light and dark themes.
 - Stack is fixed: React 19, Vite, MapLibre GL 6, Protomaps basemap, TanStack Query; API types
@@ -74,7 +78,7 @@ own priorities, across the whole city at once. Data is open (OpenStreetMap) and 
 1. The map is the answer: the city-wide picture is visible before any interaction.
 2. Times before scores: a score is only trusted when the minutes behind it are one glance away.
 3. The visitor's priorities, not ours: weights are explicit, editable, and shareable.
-4. Honest limits: say clearly what is not modelled (holidays, real-time delays, unmapped opening hours) and when a point is off the network.
+4. Honest limits: say clearly what is not modelled (real-time delays, unmapped opening hours, a single transit departure on the heatmap) and when a point is off the network.
 
 ## Accessibility & Inclusion
 

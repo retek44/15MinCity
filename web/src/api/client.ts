@@ -13,13 +13,15 @@ export type Persona = Schemas["PersonaDto"];
 export type Category = Schemas["CategoryDto"];
 export type DataRelease = Schemas["DataRelease"];
 /** walk[c][i] / bike[c][i]: seconds, or null (not reachable within 30 minutes; OpenAPI drops the null). */
-export type CellTimes = Omit<Schemas["CellTimes"], "walk" | "bike"> & { walk: (number | null)[][]; bike: (number | null)[][] };
+export type CellTimes = Omit<Schemas["CellTimes"], "walk" | "bike" | "transit"> & {
+  walk: (number | null)[][];
+  bike: (number | null)[][];
+  /** Leaving at 08:00 on a weekday; all null when the release has no public transport heatmap. */
+  transit: (number | null)[][];
+};
 export type Weights = Partial<Record<CategoryId, number>>;
 export type CommonGroundResponse = Schemas["CommonGroundResponse"];
 export type Spot = Schemas["Spot"];
-/** Walk and bike are precomputed for the whole city (heatmap, ranking); transit is per place. */
-export type HeatMode = Exclude<Mode, "transit">;
-export const heatMode = (mode: Mode): HeatMode => (mode === "transit" ? "walk" : mode);
 
 /** A place the visitor needs to reach from home, for "where should we live?". */
 export interface Anchor {
@@ -91,8 +93,8 @@ export const api = {
     get<AccessResponse>(`${BASE}/access`, { lon, lat, mode, weights: weightsParam(weights), at }),
   isochrone: (lon: number, lat: number, mode: Mode, minutes: number[], at?: string) =>
     get<IsochroneCollection>(`${BASE}/isochrone`, { lon, lat, mode, minutes: minutes.join(","), at }),
-  ranking: (mode: HeatMode, weights: Weights) =>
+  ranking: (mode: Mode, weights: Weights) =>
     get<DistrictScore[]>(`${BASE}/districts/ranking`, { mode, weights: weightsParam(weights) }),
-  commonGround: (anchors: Anchor[], mode: HeatMode, weights: Weights, at?: string) =>
+  commonGround: (anchors: Anchor[], mode: Mode, weights: Weights, at?: string) =>
     get<CommonGroundResponse>(`${BASE}/common-ground`, { places: placesParam(anchors), mode, weights: weightsParam(weights), at }),
 };

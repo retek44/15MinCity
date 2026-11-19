@@ -154,7 +154,7 @@ class GeoRepository(
     /** One query, one array per column: about 9,000 hexagons x 20 times for Budapest. */
     @Cacheable("cells")
     fun cellTimes(): CellTimes {
-        val modes = listOf(Mode.WALK, Mode.BIKE)
+        val modes = listOf(Mode.WALK, Mode.BIKE, Mode.TRANSIT)
         val columns = modes.flatMap { m -> Category.entries.map { c -> "${m.id}_${c.id}" } }
         val select = columns.joinToString(", ") { "array_agg((times ->> '$it')::int ORDER BY h3) AS $it" }
         return jdbc.sql("SELECT array_agg(h3::text ORDER BY h3) AS h3, $select FROM analytics.h3_cell")
@@ -167,9 +167,14 @@ class GeoRepository(
                     h3 = (rs.getArray("h3")?.array as Array<*>? ?: emptyArray<Any?>()).map { it as String },
                     walk = byMode.getValue(Mode.WALK),
                     bike = byMode.getValue(Mode.BIKE),
+                    transit = byMode.getValue(Mode.TRANSIT),
                 )
             }.single()
     }
+
+    /** Key of the Hungarian public holiday on a date (analytics.hu_holiday), or null. */
+    fun holiday(date: java.time.LocalDate): String? =
+        jdbc.sql("SELECT analytics.hu_holiday(?)").param(date).query(String::class.java).optional().orElse(null)
 
     fun latestRelease(): DataRelease? =
         jdbc.sql("SELECT source_file, imported_at, status FROM meta.data_release ORDER BY id DESC LIMIT 1")

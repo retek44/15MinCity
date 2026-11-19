@@ -1,5 +1,5 @@
 import type { ExpressionSpecification } from "maplibre-gl";
-import type { CategoryId, CellTimes, HeatMode, Weights } from "./api/client";
+import type { CategoryId, CellTimes, Mode, Weights } from "./api/client";
 
 /**
  * Accessibility scoring, mirrored from the API (Scoring.kt) and the database
@@ -25,9 +25,9 @@ export function score(times: Partial<Record<CategoryId, number | null>>, weights
  * columns: about a millisecond for Budapest's 8,500 hexagons. The map takes the scores as
  * feature state, so re-weighting repaints without re-reading a single tile.
  */
-export function cellScores(cells: CellTimes, mode: HeatMode, weights: Weights): Float32Array {
+export function cellScores(cells: CellTimes, mode: Mode, weights: Weights): Float32Array {
   const out = new Float32Array(cells.h3.length);
-  const columns = mode === "bike" ? cells.bike : cells.walk;
+  const columns = cells[mode];
   const active = cells.categories
     .map((c, i) => ({ weight: weights[c as CategoryId] ?? 0, times: columns[i] ?? [] }))
     .filter((c) => c.weight > 0);

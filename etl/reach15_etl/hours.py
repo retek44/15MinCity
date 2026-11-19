@@ -6,8 +6,12 @@ minutes of the week (0 = Monday 00:00, 10080 = the next Monday), the unit of ana
 Supported: ``24/7``; weekday lists and ranges (``Mo,We``, ``Mo-Fr``, wrapping ``Sa-Mo``);
 time lists (``08:00-12:00,13:00-17:00``), times past midnight (``22:00-02:00``, ``18:00-26:00``);
 ``off`` / ``closed``; ``||`` fallbacks (read as ``;``). Later rules replace earlier ones for the
-days they name, as in the specification. Public and school holidays (``PH``, ``SH``) are not
-modelled: a rule that only names holidays is skipped.
+days they name, as in the specification.
+
+Public holidays (``PH``): rules that name ``PH`` (``PH off``, ``Su,PH 10:00-14:00``) give the
+holiday hours, in minutes of the holiday (see ``parse_holiday``). A value that never names
+``PH`` keeps its weekly hours on holidays, as the specification reads. School holidays (``SH``)
+are not modelled: a rule that only names them is skipped.
 
 Anything else (month or week selectors, sunrise/sunset, comments, open ends) returns None, which
 the application treats as "hours unknown" rather than guessing.
@@ -32,9 +36,10 @@ class Unsupported(ValueError):
     """The value uses a part of the specification this parser does not model."""
 
 
-def _days(selector: str) -> list[int] | None:
-    """Weekday indexes named by a selector; [] if it only names holidays."""
+def _days(selector: str) -> tuple[list[int], bool]:
+    """Weekday indexes named by a selector, and whether it names public holidays (PH)."""
     days: list[int] = []
+    public_holiday = False
     for token in selector.split(","):
         m = _DAY_TOKEN.match(token)
         if not m:
@@ -43,12 +48,13 @@ def _days(selector: str) -> list[int] | None:
         if start in HOLIDAYS:
             if end:
                 raise Unsupported(f"holiday range {token!r}")
+            public_holiday = public_holiday or start == "PH"
             continue
         a = DAYS.index(start)
         b = DAYS.index(end) if end else a
         span = (b - a) % 7
         days += [(a + i) % 7 for i in range(span + 1)]
-    return days
+    return days, public_holiday
 
 
 def _times(selector: str) -> list[Interval]:
@@ -74,6 +80,20 @@ def _is_days(token: str) -> bool:
 
 def parse(value: str | None) -> list[Interval] | None:
     """Open intervals in minutes of the week, merged and sorted; None if unsupported or empty."""
+    parsed = parse_all(value)
+    return parsed[0] if parsed else None
+
+
+def parse_holiday(value: str | None) -> list[Interval] | None:
+    """Open intervals on a public holiday, in minutes from its midnight (the end may pass
+    midnight); [] if closed; None if the value does not name PH (weekly hours apply) or is
+    unsupported."""
+    parsed = parse_all(value)
+    return parsed[1] if parsed else None
+
+
+def parse_all(value: str | None) -> tuple[list[Interval], list[Interval] | None] | None:
+    """(weekly intervals, holiday intervals or None); None if unsupported or empty."""
     if value is None or not value.strip():
         return None
     try:
@@ -82,9 +102,10 @@ def parse(value: str | None) -> list[Interval] | None:
         return None
 
 
-def _parse(value: str) -> list[Interval]:
+def _parse(value: str) -> tuple[list[Interval], list[Interval] | None]:
     # Day of the week -> intervals relative to that day's midnight (may extend past it).
     week: dict[int, list[Interval]] = {}
+    holiday: list[Interval] | None = None
     value = re.sub(r"\s*-\s*", "-", value.strip())
     # "Mo-Fr 08:00-20:00, Sa 09:00-13:00": a comma after a time that starts a new weekday is
     # a rule separator in practice (the specification calls it an additional rule).
@@ -94,13 +115,15 @@ def _parse(value: str) -> list[Interval]:
     for rule in filter(None, rules):
         if rule == "24/7":
             week = {d: [(0, DAY)] for d in range(7)}
+            holiday = None  # every day, holidays included
             continue
         parts = rule.split()
         days: list[int] | None = None
+        public_holiday = False
         if parts and _is_days(parts[0]):
-            days = _days(parts.pop(0))
-            if days == []:
-                continue  # holidays only
+            days, public_holiday = _days(parts.pop(0))
+            if days == [] and not public_holiday:
+                continue  # school holidays only
         state = "open"
         if parts and parts[-1] in ("off", "closed", "open"):
             state = parts.pop()
@@ -113,6 +136,8 @@ def _parse(value: str) -> list[Interval]:
             days = list(range(7))
         for d in days:
             week[d] = [] if state in ("off", "closed") else list(times)
+        if public_holiday:
+            holiday = [] if state in ("off", "closed") else _merge(list(times))
     if not week:
         raise Unsupported(value)
 
@@ -125,7 +150,7 @@ def _parse(value: str) -> list[Interval]:
             else:  # Sunday night runs into Monday morning
                 intervals.append((a, WEEK))
                 intervals.append((0, b - WEEK))
-    return _merge(intervals)
+    return _merge(intervals), holiday
 
 
 def _merge(intervals: list[Interval]) -> list[Interval]:

@@ -10,6 +10,9 @@ $$;
 
 -- Cycling: 15 km/h on roads, pushing the bike (1.1 m/s) on footways where cycling is not allowed,
 -- no steps, oneway restrictions unless oneway:bicycle=no. -1 = not traversable.
+-- bicycle=no on a footway or pedestrian street means "no cycling", not "no bikes": whoever pushes
+-- a bike there walks like a pedestrian. Treating it as a wall cut squares such as Deák Ferenc tér
+-- off the cycling graph (a bike score of 6 in the middle of the city). On roads it stays a wall.
 CREATE OR REPLACE FUNCTION routing.bike_costs(
     length_m double precision,
     highway text,
@@ -20,9 +23,10 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     WITH p AS (
         SELECT
             CASE
-                WHEN tags ->> 'bicycle' = 'no' OR highway = 'steps' THEN NULL
+                WHEN highway = 'steps' THEN NULL
                 WHEN highway IN ('footway', 'pedestrian', 'corridor')
                      AND coalesce(tags ->> 'bicycle', '') NOT IN ('yes', 'designated', 'permissive') THEN 1.1
+                WHEN tags ->> 'bicycle' = 'no' THEN NULL
                 ELSE 15.0 / 3.6
             END AS speed,
             CASE
@@ -36,6 +40,49 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
         CASE WHEN speed IS NULL OR oneway = -1 THEN -1 ELSE length_m / speed END,
         CASE WHEN speed IS NULL OR oneway = 1 THEN -1 ELSE length_m / speed END
     FROM p
+$$;
+
+-- Cycling time over an edge with a climb and a descent (metres), from its flat time.
+--   up:   +3.5 s per metre climbed (10 % over 80 m: 24 s becomes 52 s, about 5.5 km/h);
+--   down: -1.2 s per metre descended, never faster than 30 km/h.
+-- Simple and monotonic rather than a power model: what matters for "15 minutes" is that Buda's
+-- hills cost minutes and Pest's flat streets do not. -1 (not traversable) stays -1.
+CREATE OR REPLACE FUNCTION routing.bike_hill_cost(
+    flat_cost double precision,
+    length_m double precision,
+    climb_m double precision,
+    descent_m double precision)
+RETURNS double precision
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+    SELECT CASE
+        WHEN flat_cost < 0 THEN flat_cost
+        ELSE greatest(flat_cost + 3.5 * climb_m - 1.2 * descent_m,
+                      least(flat_cost, length_m / (30 / 3.6)))
+    END
+$$;
+
+-- Applies routing.edge_elevation (filled by the ETL from a DEM) to the cycling costs, once per
+-- graph build: forward cost climbs climb_m, reverse cost climbs descent_m.
+CREATE OR REPLACE FUNCTION routing.apply_elevation()
+RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+    n bigint;
+BEGIN
+    IF EXISTS (SELECT 1 FROM routing.edges WHERE climb_m > 0 OR descent_m > 0) THEN
+        RAISE EXCEPTION 'elevation is already applied to this graph; rebuild it first';
+    END IF;
+    UPDATE routing.edges e
+    SET climb_m = x.climb_m,
+        descent_m = x.descent_m,
+        cost_bike_s = routing.bike_hill_cost(e.cost_bike_s, e.length_m, x.climb_m, x.descent_m),
+        reverse_cost_bike_s = routing.bike_hill_cost(e.reverse_cost_bike_s, e.length_m, x.descent_m, x.climb_m)
+    FROM routing.edge_elevation x
+    WHERE x.edge_id = e.id;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    TRUNCATE routing.edge_elevation;
+    RETURN n;
+END
 $$;
 
 -- Builds routing.edges / routing.vertices from osm.walk_ways.

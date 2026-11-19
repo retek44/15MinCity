@@ -20,7 +20,13 @@ export function Legend({ title, dark, low, high }: { title: string; dark: boolea
         <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
           © OpenStreetMap
         </a>{" "}
-        <span className="credit-extra">· Protomaps · Reach15</span>
+        <span className="credit-extra">
+          · Protomaps ·{" "}
+          <a href="https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model" target="_blank" rel="noreferrer">
+            Copernicus DEM
+          </a>{" "}
+          · Reach15
+        </span>
       </p>
     </div>
   );

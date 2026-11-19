@@ -17,6 +17,9 @@ interface Props {
   lang: string;
   onFocusCategory: (category: CategoryId | undefined) => void;
   onClear: () => void;
+  /** Pin the place to the comparison: possible, done already, or three are pinned. */
+  compare: "add" | "added" | "full";
+  onCompare: () => void;
 }
 
 const LIMIT_SECONDS = 15 * 60;
@@ -36,7 +39,8 @@ function CloseButton({ t, onClear }: Pick<Props, "t" | "onClear">) {
  * The selected point: the score as a poster numeral, then the minutes behind it, one row per
  * category, nearest first. Pressing a row recolours the map by that category alone.
  */
-export function PlacePanel({ t, access, loading, error, minutes, scoreFor, district, focusCategory, lang, onFocusCategory, onClear }: Props) {
+export function PlacePanel(props: Props) {
+  const { t, access, loading, error, minutes, scoreFor, district, focusCategory, lang, onFocusCategory, onClear, compare, onCompare } = props;
   if (error) {
     return (
       <section className="place" role="alert">
@@ -77,6 +81,17 @@ export function PlacePanel({ t, access, loading, error, minutes, scoreFor, distr
         </div>
         <CloseButton t={t} onClear={onClear} />
       </header>
+      <button
+        type="button"
+        className="place-compare"
+        aria-pressed={compare === "added"}
+        disabled={compare !== "add"}
+        onClick={onCompare}
+        data-testid="compare-add"
+      >
+        <Icon name={compare === "added" ? "check" : "plus"} />
+        {compare === "added" ? t.compareAdded : compare === "full" ? t.compareFull : t.compareAdd}
+      </button>
 
       <div className="score">
         <span className="score-value num" data-testid="score">
@@ -96,6 +111,11 @@ export function PlacePanel({ t, access, loading, error, minutes, scoreFor, distr
         </p>
       ) : (
         access.at && <p className="place-when">{t.openAt(formatAt(access.at, lang))}</p>
+      )}
+      {access.holiday && (
+        <p className="place-when" data-testid="holiday-note">
+          {t.holidayNote(t.holidays[access.holiday] ?? access.holiday)}
+        </p>
       )}
 
       <p className="iso-key-title" id="iso-key-title">

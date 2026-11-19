@@ -9,9 +9,10 @@
     python tasks.py app         run the whole stack in containers (http://localhost:8088)
     python tasks.py download    download Hungary and cut the Budapest extract into ./data
     python tasks.py gtfs        download the BKK public transport timetable (GTFS) into ./data
+    python tasks.py dem         read the Budapest window of the Copernicus elevation model into ./data
     python tasks.py basemap     cut the Budapest basemap (PMTiles) from the Protomaps daily build
     python tasks.py tiles       start the Martin tile server (localhost:3000)
-    python tasks.py pipeline    import ./data/budapest.osm.pbf (+ budapest_gtfs.zip) and precompute everything
+    python tasks.py pipeline    import ./data/budapest.osm.pbf (+ budapest_gtfs.zip, budapest-dem.tif) and precompute everything
     python tasks.py api         run the API against the dev database (localhost:8080)
     python tasks.py down        stop the stack (add --volumes to drop the database)
 """
@@ -39,9 +40,21 @@ def compose(*args: str, db: str = DEV_DB, env: dict[str, str] | None = None) -> 
 E2E_ENV = {"APP_DB": TEST_DB, "MARTIN_CONFIG": "martin.e2e.yaml", "WEB_PORT": "8088"}
 
 
+def transit_heatmap(env: dict[str, str] | None = None, date: str | None = None) -> None:
+    """Public transport heatmap: the API image runs RAPTOR per H3 cell against APP_DB, then exits."""
+    compose(
+        "--profile", "app", "run", "--rm", "--build", "--no-deps", "api",
+        "--spring.main.web-application-type=none", "--reach15.precompute=transit-heatmap",
+        *([f"--reach15.transit-date={date}"] if date else []),
+        env=env,
+    )
+
+
 def e2e() -> None:
     """Production-like stack (API + Caddy + Martin images) on the fixture database, then Playwright."""
     test_db()
+    # Tuesday 2026-11-17: the GTFS fixture runs on weekdays, and tests pin their dates.
+    transit_heatmap(E2E_ENV, "2026-11-17")
     compose("--profile", "app", "up", "-d", "--build", "--wait", "--force-recreate", "martin", "api", "web", env=E2E_ENV)
     npx = "npx.cmd" if os.name == "nt" else "npx"
     subprocess.run(
@@ -101,7 +114,8 @@ def main() -> int:
     p.add_argument(
         "task",
         choices=[
-            "up", "migrate", "test-db", "test-api", "e2e", "download", "gtfs", "basemap", "pipeline", "api", "tiles", "app", "down",
+            "up", "migrate", "test-db", "test-api", "e2e", "download", "gtfs", "dem", "basemap", "pipeline", "api", "tiles",
+            "app", "down",
         ],
     )
     p.add_argument("--volumes", action="store_true", help="down: also remove the database volume")
@@ -133,6 +147,8 @@ def main() -> int:
             etl(DEV_DB, "download")
         elif args.task == "gtfs":
             etl(DEV_DB, "gtfs-download")
+        elif args.task == "dem":
+            etl(DEV_DB, "dem-download")
         elif args.task == "basemap":
             etl(DEV_DB, "basemap")
         elif args.task == "tiles":
@@ -141,7 +157,10 @@ def main() -> int:
             up()
             migrate()
             gtfs = ["--gtfs", "/data/budapest_gtfs.zip"] if (ROOT / "data" / "budapest_gtfs.zip").exists() else []
-            etl(DEV_DB, "run", "/data/budapest.osm.pbf", *gtfs)
+            dem = ["--dem", "/data/budapest-dem.tif"] if (ROOT / "data" / "budapest-dem.tif").exists() else []
+            etl(DEV_DB, "run", "/data/budapest.osm.pbf", *gtfs, *dem)
+            if gtfs:
+                transit_heatmap()
         elif args.task == "down":
             compose("--profile", "tools", "down", *(["--volumes"] if args.volumes else []))
     except subprocess.CalledProcessError as e:

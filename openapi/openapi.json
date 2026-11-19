@@ -21,6 +21,10 @@
             },
             "type" : "array"
           },
+          "holiday" : {
+            "description" : "Hungarian public holiday on the day of `at` (or of the transit departure), e.g. easter_monday: holiday opening hours (PH) apply where mapped; null on other days",
+            "type" : [ "string", "null" ]
+          },
           "mode" : {
             "enum" : [ "walk", "bike", "transit" ],
             "type" : "string"
@@ -138,6 +142,17 @@
             },
             "type" : "array"
           },
+          "transit" : {
+            "description" : "Walking and public transport, leaving at 08:00 on a weekday; all null until computed",
+            "items" : {
+              "items" : {
+                "format" : "int32",
+                "type" : "integer"
+              },
+              "type" : "array"
+            },
+            "type" : "array"
+          },
           "walk" : {
             "items" : {
               "items" : {
@@ -149,7 +164,7 @@
             "type" : "array"
           }
         },
-        "required" : [ "bike", "categories", "h3", "walk" ],
+        "required" : [ "bike", "categories", "h3", "transit", "walk" ],
         "type" : "object"
       },
       "CommonGroundResponse" : {
