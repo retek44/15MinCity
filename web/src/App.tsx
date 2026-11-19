@@ -1,5 +1,5 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { type Anchor, api, type CategoryId, type DistrictScore, type Mode, type Persona, type Weights } from "./api/client";
 import { CommonGroundPanel, LETTERS } from "./components/CommonGroundPanel";
 import { type Compared, ComparePanel, MAX_COMPARED, type Pinned } from "./components/ComparePanel";
@@ -147,14 +147,16 @@ export function App() {
       retry: false,
     })),
   });
-  // The address does not change with mode or time: remember it, so a pinned place keeps its name
-  // while its answer for a new mode loads (a new query key starts without placeholder data).
-  const compareLabels = useRef(new Map<string, string>());
+  // The address does not change with mode or time: while the answer for a new mode loads (a new
+  // query key starts without placeholder data), a pinned place keeps the name from any earlier answer.
+  const queryClient = useQueryClient();
+  const cachedLabel = (p: Pinned) =>
+    queryClient
+      .getQueriesData<Awaited<ReturnType<typeof api.access>>>({ queryKey: ["access", p.lon, p.lat] })
+      .find(([, data]) => data?.address?.label)?.[1]?.address?.label;
   const compared: Compared[] = compare.map((p, i) => {
     const access = comparedQueries[i]?.data;
-    const key = `${p.lon},${p.lat}`;
-    if (access?.address?.label) compareLabels.current.set(key, access.address.label);
-    return { ...p, access, label: compareLabels.current.get(key), error: comparedQueries[i]?.error?.message };
+    return { ...p, access, label: access ? undefined : cachedLabel(p), error: comparedQueries[i]?.error?.message };
   });
   const pinned = point && compare.some((p) => p.lon === point.lon && p.lat === point.lat);
 

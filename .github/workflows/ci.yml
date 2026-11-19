@@ -82,8 +82,11 @@ jobs:
       - name: gitleaks
         run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest git /repo --redact --no-banner
       - name: Trivy (dependencies, IaC, misconfiguration)
-        uses: aquasecurity/trivy-action@v0.33.1
+        # Pinned by commit (v0.36.0): trivy-action tags were rewritten in the March 2026 incident,
+        # and the Trivy release an older action installs (v0.65.0) has since been deleted.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
+          version: v0.76.2
           scan-type: fs
           scanners: vuln,misconfig,secret
           severity: HIGH,CRITICAL
