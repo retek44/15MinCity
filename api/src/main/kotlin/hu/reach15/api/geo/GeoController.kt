@@ -16,11 +16,13 @@ import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.Size
 import org.springframework.format.annotation.DateTimeFormat
+import org.springframework.http.CacheControl
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.time.Duration
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.round
@@ -186,6 +188,12 @@ class GeoController(
             at = if (anchors.any { it.mode == Mode.TRANSIT }) departure else null,
         )
     }
+
+    @Operation(summary = "Travel times of every heatmap hexagon (the inputs of the map's colours)")
+    @GetMapping("/cells")
+    fun cells(): ResponseEntity<CellTimes> =
+        // Changes only with a data release; the browser may keep it for an hour.
+        ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic()).body(repo.cellTimes())
 
     @Operation(summary = "The data release currently served")
     @GetMapping("/meta")

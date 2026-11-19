@@ -457,8 +457,9 @@ BEGIN
 END
 $$;
 
--- Martin function source: H3 cells as Mapbox Vector Tiles. Travel times are tile
--- properties, so the client computes scores itself and re-weights without a request.
+-- Martin function source: H3 cells as Mapbox Vector Tiles, shape and district only. The travel
+-- times come once per release from the API (/api/v1/cells) and colour the cells through feature
+-- state: carried in every tile they were more than half its size, at every zoom level.
 CREATE OR REPLACE FUNCTION analytics.h3_tiles(z integer, x integer, y integer)
 RETURNS bytea
 LANGUAGE plpgsql STABLE PARALLEL SAFE AS $$
@@ -469,7 +470,6 @@ BEGIN
     FROM (
         SELECT c.h3::text AS h3,
                c.district_id,
-               c.times,
                ST_AsMVTGeom(ST_Transform(c.geom, 3857), ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
         FROM analytics.h3_cell c
         WHERE c.geom && ST_Transform(ST_TileEnvelope(z, x, y), 4326)

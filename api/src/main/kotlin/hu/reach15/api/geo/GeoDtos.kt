@@ -121,3 +121,15 @@ data class PersonaDto(val id: String, val label: String, val weights: Map<String
 data class CategoryDto(val id: String, val label: String)
 
 data class DataRelease(val sourceFile: String, val importedAt: OffsetDateTime, val status: String)
+
+@Schema(
+    description = "Travel times of every heatmap hexagon, column by column. walk[c][i] is the walking " +
+        "time in seconds from hexagon h3[i] to the nearest place of categories[c]; null means not " +
+        "reachable within 30 minutes. The map scores hexagons from these in the browser.",
+)
+data class CellTimes(
+    val categories: List<String>,
+    val h3: List<String>,
+    val walk: List<List<Int?>>,
+    val bike: List<List<Int?>>,
+)

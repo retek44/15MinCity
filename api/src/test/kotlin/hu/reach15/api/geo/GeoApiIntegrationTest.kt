@@ -37,6 +37,23 @@ class GeoApiIntegrationTest : IntegrationTest() {
             assertEquals("grid.osm", meta["sourceFile"].asString())
             assertEquals("succeeded", meta["status"].asString())
         }
+
+        @Test
+        fun `cells carry every hexagon's travel times column by column`() {
+            val cells = get("/api/v1/cells")
+            val categories = cells["categories"].items().map { it.asString() }
+            val hexagons = cells["h3"].items().map { it.asString() }
+            assertEquals(10, categories.size)
+            assertTrue(hexagons.isNotEmpty())
+            assertEquals(hexagons.size, hexagons.toSet().size)
+            for (mode in listOf("walk", "bike")) {
+                assertEquals(categories.size, cells[mode].size())
+                cells[mode].items().forEach { column -> assertEquals(hexagons.size, column.size()) }
+            }
+            // The grid fixture's hexagons reach its Corner Market on foot.
+            val grocery = cells["walk"][categories.indexOf("grocery")].items().toList()
+            assertTrue(grocery.any { !it.isNull && it.asInt() in 0..1800 })
+        }
     }
 
     @Nested

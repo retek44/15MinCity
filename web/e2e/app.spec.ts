@@ -52,17 +52,24 @@ test("shared link restores the point and travel mode; bike respects oneway stree
 test("changing the profile re-scores the heatmap without new tiles", async ({ page }) => {
   await page.goto("/");
   await mapReady(page);
-  const colorExpression = () =>
-    page.evaluate(() => JSON.stringify(window.__reach15!.map.getPaintProperty("r15-h3", "fill-color")));
-
-  const before = await colorExpression();
-  const tileRequests: string[] = [];
-  page.on("request", (r) => r.url().includes("/tiles/h3/") && tileRequests.push(r.url()));
+  // The map scores every hexagon from /api/v1/cells and paints the scores as feature state.
+  const heat = () => page.evaluate(() => window.__reach15!.heat);
+  const scoreOf = () =>
+    page.evaluate(() => {
+      const map = window.__reach15!.map;
+      const id = map.queryRenderedFeatures({ layers: ["r15-h3"] })[0]?.id;
+      return id === undefined ? undefined : map.getFeatureState({ source: "r15-h3", sourceLayer: "h3", id }).score;
+    });
+  await expect.poll(async () => (await heat())?.cells).toBeGreaterThan(0);
+  await expect.poll(scoreOf).toEqual(expect.any(Number));
+  const before = await heat();
+  const requests: string[] = [];
+  page.on("request", (r) => /\/tiles\/h3\/|\/api\/v1\/cells/.test(r.url()) && requests.push(r.url()));
 
   await page.getByRole("radio", { name: "Family with kids" }).click();
-  await expect.poll(colorExpression).not.toBe(before);
-  expect(await colorExpression()).toContain("walk_kindergarten");
-  expect(tileRequests).toHaveLength(0);
+  await expect.poll(heat).not.toEqual(before);
+  expect((await heat())?.categories).toContain("kindergarten");
+  expect(requests).toHaveLength(0);
 });
 
 test("points away from the street network show a helpful error", async ({ page }) => {
@@ -92,13 +99,12 @@ test("focusing a category recolours the map by that category alone", async ({ pa
   await page.goto(link(GRID.v1044));
   await mapReady(page);
   await page.getByTestId("category-pharmacy").getByRole("button").click();
-  const color = () => page.evaluate(() => JSON.stringify(window.__reach15!.map.getPaintProperty("r15-h3", "fill-color")));
-  await expect.poll(color).toContain("walk_pharmacy");
-  expect(await color()).not.toContain("walk_grocery");
+  const scored = () => page.evaluate(() => window.__reach15!.heat?.categories);
+  await expect.poll(scored).toEqual(["pharmacy"]);
   await expect(page.getByRole("figure")).toContainText("Pharmacy");
 
   await page.getByRole("button", { name: "Show all categories" }).click();
-  await expect.poll(color).toContain("walk_grocery");
+  await expect.poll(scored).toContain("grocery");
 });
 
 test("switches language and theme", async ({ page }) => {

@@ -12,6 +12,8 @@ export type DistrictScore = Schemas["DistrictScore"];
 export type Persona = Schemas["PersonaDto"];
 export type Category = Schemas["CategoryDto"];
 export type DataRelease = Schemas["DataRelease"];
+/** walk[c][i] / bike[c][i]: seconds, or null (not reachable within 30 minutes; OpenAPI drops the null). */
+export type CellTimes = Omit<Schemas["CellTimes"], "walk" | "bike"> & { walk: (number | null)[][]; bike: (number | null)[][] };
 export type Weights = Partial<Record<CategoryId, number>>;
 export type CommonGroundResponse = Schemas["CommonGroundResponse"];
 export type Spot = Schemas["Spot"];
@@ -82,6 +84,7 @@ export const api = {
   categories: () => get<Category[]>(`${BASE}/categories`),
   personas: () => get<Persona[]>(`${BASE}/personas`),
   meta: () => get<DataRelease>(`${BASE}/meta`),
+  cells: () => get<CellTimes>(`${BASE}/cells`),
   search: (q: string, near: { lon: number; lat: number } | undefined, signal?: AbortSignal) =>
     get<SearchResult[]>(`${BASE}/search`, { q, limit: 8, lon: near?.lon, lat: near?.lat }, signal),
   access: (lon: number, lat: number, mode: Mode, weights: Weights, at?: string) =>

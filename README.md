@@ -42,7 +42,7 @@ every layer has its own suite, and the CI/CD pipeline gates both code releases a
 | `etl/` | Python 3.13, osm2pgsql 2 (flex Lua), osmium, pmtiles CLI | download, import, GTFS import, opening-hours parser, build, quality gates, score drift, fixture generator |
 | `api/` | Kotlin 2.4, Spring Boot 4, Jackson 3, springdoc, Caffeine | thin layer over SQL functions plus RAPTOR (public transport); RFC 9457 problem details |
 | `tiles/` | Martin | `analytics.h3_tiles(z, x, y)` function source + PMTiles basemap |
-| `web/` | React 19, Vite, MapLibre GL 6, @protomaps/basemaps, openapi-typescript | scoring runs on the GPU as style expressions |
+| `web/` | React 19, Vite, MapLibre GL 6, @protomaps/basemaps, openapi-typescript | scores every hexagon in the browser, painted through feature state |
 | `deploy/` | Docker Compose, Caddy | blue/green for the app, rename-swap for the data |
 
 ### API
@@ -88,15 +88,19 @@ towards them. The synthetic grid catches this: 168 s is correct, 120 s means the
 | Transit (BKK: 5.8k stops, 40k weekday trips) | | timetable load 2.9 s per service day, then access ~0.8 s, isochrone ~1 s | RAPTOR over flat arrays; one seeded Dijkstra for every walk-on |
 | Common ground (2 places) | | walk + bike ~1.2 s, with a transit place ~4 s (cold) | one seeded search per place, H3 intersection |
 | GTFS import + opening hours | | 48 s + 0.1 s | 5.8M stop times via COPY; 5,174 of 5,326 `opening_hours` values parsed |
+| Heatmap tiles (z11, 1,400 hexagons) | travel times as tile properties: 157 kB (88 kB gzip) | shape + district only: 69 kB (18 kB gzip) | times load once per release from `/api/v1/cells` (290 kB zstd) |
+| Re-weighting the map (persona, slider) | data-driven paint expression: every tile re-parsed | scores as feature state: 40-50 ms to a finished frame | no tile is read again |
+| Click on the map | camera padding shifted the map 196 px; clicks near the left edge also zoomed to the point; ~190 ms shader compile | map stays put (pans only if the panel covers the point); shaders compiled at start-up | measured with `web/scripts/profile.mjs` and `check-motion.mjs` |
 
-**Client-side scoring.** Vector tiles carry raw travel times per category (`walk_grocery`,
-`bike_park`...), not scores. The browser turns the user's weights into a MapLibre style expression,
-so moving a slider recolours the whole city without a single new tile request. The same formula
-lives in SQL (`analytics.access_score`), Kotlin and TypeScript; `tests/fixtures/scoring-vectors.json`
-holds shared input/output vectors that the Kotlin and TypeScript implementations (and the MapLibre
-expression, evaluated by the style-spec engine in Vitest) must match. Those vectors found a
-real bug: MapLibre's `["to-number", null, fallback]` returns `0` instead of the fallback, so an
-unreachable category scored as *perfect* on the map. See [ADR 0003](docs/adr/0003-client-side-scoring.md).
+**Client-side scoring.** The browser loads every hexagon's raw travel times once per data release
+(`/api/v1/cells`: 8.5k hexagons × 2 modes × 10 categories), scores all of them in about a
+millisecond, and hands the scores to MapLibre as feature state. Moving a slider recolours the whole
+city without a request and without re-reading a tile. The vector tiles carry only the shape and
+the district. The same formula lives in SQL (`analytics.access_score`), Kotlin and TypeScript;
+`tests/fixtures/scoring-vectors.json` holds shared input/output vectors that the Kotlin and
+TypeScript implementations must match. Those vectors found a real bug in an earlier version that
+scored in MapLibre expressions: `["to-number", null, fallback]` returns `0` instead of the fallback,
+so an unreachable category scored as *perfect* on the map. See [ADR 0003](docs/adr/0003-client-side-scoring.md).
 
 **Public transport, opening hours, common ground.** Every on-demand street search starts from
 *seeds*: vertices with the time already spent reaching them. A clicked point is one seed. By public
@@ -121,10 +125,10 @@ Decision records: [routing inside PostGIS](docs/adr/0001-routing-inside-postgis.
 | SQL functions | pgTAP | 119 | cost model (walk/bike, oneway, steps), scoring, search normalisation and ranking, isochrone geometry, seeded search, opening hours, GTFS calendars, common ground, input validation (SQLSTATE 22023) |
 | OSM mapping, graph, precompute | pgTAP on the synthetic grid | (incl.) | Lua rules; ways split at junctions; snapping never targets an island; every vertex matches its hand-computed Manhattan time |
 | ETL | pytest + ruff | 40 | fixture generators (OSM + GTFS), opening_hours parser, quality gates, score-drift gate |
-| API | JUnit 5 + Testcontainers | 50 | RAPTOR on hand-made timetables; real PostGIS image restored from the fixture dump: endpoints, tram timetable, opening hours, common ground, error mapping, caching |
+| API | JUnit 5 + Testcontainers | 51 | RAPTOR on hand-made timetables; real PostGIS image restored from the fixture dump: endpoints, tram timetable, opening hours, common ground, error mapping, caching |
 | API contract | snapshot test | 1 | `openapi/openapi.json` matches the running API (`./gradlew test -PupdateSnapshots` to accept) |
 | Front-end types | CI drift check | | `src/api/schema.d.ts` regenerated from the contract must not differ |
-| Front end | Vitest | 52 | scoring vectors, style expressions, URL state, "when?" presets across time zones and DST, components |
+| Front end | Vitest | 47 | scoring vectors, per-hexagon scores, URL state, "when?" presets across time zones and DST, components |
 | End to end | Playwright + axe-core | 14 | production images (Caddy + API + Martin) on the fixture DB; desktop and mobile; no serious a11y violations |
 | Performance | k6 | | p95 budgets per endpoint; fixture in CI, real Budapest data on staging |
 | Release (data) | quality gates + drift gate | | graph health, coverage, and < 5 % of cells moving > 10 points vs production |
@@ -204,7 +208,7 @@ For front-end development run `python tasks.py api` and `npm run dev` in `web/` 
 - [x] **Phase 1, data foundation:** Docker DB, Flyway, OSM import, graph build, multi-source precompute, H3, quality gates, pgTAP
 - [x] **Phase 2, API:** Kotlin + Spring Boot; search, reverse, access, isochrone, ranking; Testcontainers; OpenAPI contract snapshot
 - [x] **Phase 3, tiles + analytics:** Martin function source, PMTiles basemap, district ranking, score-drift report between data releases
-- [x] **Phase 4, front end:** React + MapLibre GL, client-side re-weighting via style expressions, personas, EN/HU, light/dark, shareable URLs, Playwright + axe
+- [x] **Phase 4, front end:** React + MapLibre GL, client-side re-weighting, personas, EN/HU, light/dark, shareable URLs, Playwright + axe
 - [x] **Phase 5, delivery:** signed multi-arch images, staging + approval-gated production, blue/green deploy, k6 budgets, weekly data release with an atomic database swap
 - [x] **Phase 6, extensions:** "where should we live?" (intersection of several people's reach, best spots inside), opening hours, transit routing (RAPTOR over BKK GTFS), preview environments per PR
 

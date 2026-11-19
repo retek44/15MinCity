@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cells": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Travel times of every heatmap hexagon (the inputs of the map's colours) */
+        get: operations["cells"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/common-ground": {
         parameters: {
             query?: never;
@@ -214,6 +231,13 @@ export interface components {
         CategoryDto: {
             id: string;
             label: string;
+        };
+        /** @description Travel times of every heatmap hexagon, column by column. walk[c][i] is the walking time in seconds from hexagon h3[i] to the nearest place of categories[c]; null means not reachable within 30 minutes. The map scores hexagons from these in the browser. */
+        CellTimes: {
+            bike: number[][];
+            categories: string[];
+            h3: string[];
+            walk: number[][];
         };
         CommonGroundResponse: {
             anchors: components["schemas"]["Anchor"][];
@@ -413,6 +437,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryDto"][];
+                };
+            };
+        };
+    };
+    cells: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CellTimes"];
                 };
             };
         };

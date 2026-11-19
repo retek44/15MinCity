@@ -6,8 +6,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // bundling (production builds 404 on the worker). Emit the worker as an asset and point at it.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef } from "react";
-import type { HeatMode, IsochroneCollection, Weights } from "../api/client";
-import { heatColor, score } from "../scoring";
+import type { CellTimes, HeatMode, IsochroneCollection, Weights } from "../api/client";
+import { cellScores, heatColor } from "../scoring";
 import { BUDAPEST_BOUNDS, baseStyle, firstSymbolLayer, h3Source, INITIAL_VIEW } from "./style";
 
 maplibregl.setWorkerUrl(workerUrl);
@@ -41,6 +41,8 @@ interface Props {
   mode: HeatMode;
   /** Weights the heatmap is coloured by (the profile, or one focused category). */
   weights: Weights;
+  /** Travel times of every hexagon; the map scores them and paints the scores. */
+  cells?: CellTimes;
   dark: boolean;
   lang: string;
   basemap: boolean;
@@ -61,7 +63,7 @@ interface Props {
 declare global {
   interface Window {
     /** Exposed for end-to-end tests: map state is asserted, not pixels. */
-    __reach15?: { map: MlMap };
+    __reach15?: { map: MlMap; heat?: { mode: HeatMode; categories: string[]; cells: number } };
   }
 }
 
@@ -77,12 +79,24 @@ const INK = {
 
 const tone = (dark: boolean) => (dark ? "dark" : "light");
 
-/** Hexagons stay readable under the reach planes; a focused district keeps its own cells. */
-function h3Opacity(hasPoint: boolean, focus?: DistrictFocus): ExpressionSpecification | number {
+/**
+ * Hexagons stay readable under the reach planes; a focused district keeps its own cells.
+ * A hexagon without a score yet (the travel times are still loading) is not drawn.
+ */
+function h3Opacity(hasPoint: boolean, focus?: DistrictFocus): ExpressionSpecification {
   const base = hasPoint ? 0.3 : 0.82;
-  if (!focus) return base;
-  return ["case", ["==", ["to-number", ["get", "district_id"]], focus.id], base, 0.08];
+  const shown: ExpressionSpecification | number = focus
+    ? ["case", ["==", ["to-number", ["get", "district_id"]], focus.id], base, 0.08]
+    : base;
+  return ["case", ["==", ["typeof", ["feature-state", "score"]], "number"], shown, 0];
 }
+
+/**
+ * Invisible for the one-off "warm-up" feature of each overlay source. MapLibre compiles a
+ * layer's shaders the first time it draws it; drawing an invisible feature at start-up moves
+ * that 100-200 ms stall from the first click to the first load.
+ */
+const unlessWarm = (value: number | ExpressionSpecification): ExpressionSpecification => ["case", ["has", "warm"], 0, value];
 
 /** Adds the accessibility overlay to whatever basemap style is loaded. */
 function addOverlay(map: MlMap, props: Props) {
@@ -102,7 +116,7 @@ function addOverlay(map: MlMap, props: Props) {
       source: "r15-h3",
       "source-layer": "h3",
       paint: {
-        "fill-color": heatColor(props.mode, props.weights, props.dark),
+        "fill-color": heatColor(props.dark),
         "fill-opacity": h3Opacity(Boolean(props.point), props.focusDistrict),
         "fill-outline-color": "rgba(0,0,0,0)",
       },
@@ -137,7 +151,7 @@ function addOverlay(map: MlMap, props: Props) {
       source: "r15-iso",
       paint: {
         "fill-color": ["match", ["get", "minutes"], 5, INK.ink[t], 10, INK.poppy[t], INK.saffron],
-        "fill-opacity": ["match", ["get", "minutes"], 5, 0.62, 10, 0.72, 0.75],
+        "fill-opacity": unlessWarm(["match", ["get", "minutes"], 5, 0.62, 10, 0.72, 0.75]),
       },
     },
     before,
@@ -148,7 +162,7 @@ function addOverlay(map: MlMap, props: Props) {
       id: "r15-common-fill",
       type: "fill",
       source: "r15-common",
-      paint: { "fill-color": INK.saffron, "fill-opacity": 0.32 },
+      paint: { "fill-color": INK.saffron, "fill-opacity": unlessWarm(0.32) },
     },
     before,
   );
@@ -157,7 +171,7 @@ function addOverlay(map: MlMap, props: Props) {
       id: "r15-common-line",
       type: "line",
       source: "r15-common",
-      paint: { "line-color": INK.ink[t], "line-width": 2.5 },
+      paint: { "line-color": INK.ink[t], "line-width": 2.5, "line-opacity": unlessWarm(1) },
     },
     before,
   );
@@ -171,6 +185,8 @@ function addOverlay(map: MlMap, props: Props) {
       "circle-color": INK.ink[t],
       "circle-stroke-width": 2,
       "circle-stroke-color": INK.paper[t],
+      "circle-opacity": unlessWarm(1),
+      "circle-stroke-opacity": unlessWarm(1),
     },
   });
   map.addLayer({
@@ -182,8 +198,27 @@ function addOverlay(map: MlMap, props: Props) {
       "circle-color": INK.paper[t],
       "circle-stroke-width": 5,
       "circle-stroke-color": INK.ink[t],
+      "circle-opacity": unlessWarm(1),
+      "circle-stroke-opacity": unlessWarm(1),
     },
   });
+}
+
+/** Puts one invisible feature in every overlay source, in view, so its shaders compile now. */
+function warmUp(map: MlMap) {
+  const { lng, lat } = map.getCenter();
+  const d = 1e-5;
+  const ring = [[lng, lat], [lng + d, lat], [lng + d, lat + d], [lng, lat]];
+  const area: FeatureCollection = {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", properties: { warm: 1, minutes: 5, weight: 1 }, geometry: { type: "Polygon", coordinates: [ring] } }],
+  };
+  const dot: FeatureCollection = {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", properties: { warm: 1, weight: 1 }, geometry: { type: "Point", coordinates: [lng, lat] } }],
+  };
+  for (const id of ["r15-iso", "r15-common"]) (map.getSource(id) as GeoJSONSource | undefined)?.setData(area);
+  for (const id of ["r15-pois", "r15-point"]) (map.getSource(id) as GeoJSONSource | undefined)?.setData(dot);
 }
 
 /** Pushes the selection (isochrones, nearest POIs, the point) into the overlay sources. */
@@ -214,6 +249,9 @@ const wide = () => window.innerWidth > 720;
 /** Camera moves: quick enough to feel direct, long enough to keep the sense of place. */
 const MOVE_MS = 550;
 
+/** Right camera padding while the place panel is open: its width plus a margin. */
+const PANEL_PAD = 392;
+
 export function MapView(props: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
@@ -221,6 +259,10 @@ export function MapView(props: Props) {
   const selectedId = useRef<string | undefined>(undefined);
   /** Re-applies the selection outline; a new style (theme, language) drops feature state. */
   const reselect = useRef<() => void>(() => {});
+  /** Re-applies the hexagon scores, for the same reason. */
+  const rescore = useRef<() => void>(() => {});
+  /** The overlay sources have held real data (so the warm-up is no longer needed). */
+  const hasData = useRef(false);
   const propsRef = useRef(props);
   useEffect(() => {
     propsRef.current = props;
@@ -248,8 +290,22 @@ export function MapView(props: Props) {
     map.on("style.load", () => {
       addOverlay(map, propsRef.current);
       selectedId.current = undefined;
+      rescore.current();
       reselect.current();
-      applyData(map, propsRef.current);
+      const { isochrones, pois, point, commonArea } = propsRef.current;
+      if (hasData.current || isochrones || pois.length || point || commonArea) {
+        applyData(map, propsRef.current);
+      } else {
+        // After the first full frame (its own shaders are a long task already), draw the
+        // warm-up features; once they are drawn, swap them for the real, empty data.
+        map.once("idle", () => {
+          if (hasData.current) return;
+          warmUp(map);
+          map.once("idle", () => {
+            if (!hasData.current) applyData(map, propsRef.current);
+          });
+        });
+      }
     });
     map.on("click", (e) => {
       propsRef.current.onSelect({ lon: e.lngLat.lng, lat: e.lngLat.lat });
@@ -271,12 +327,14 @@ export function MapView(props: Props) {
       frame = 0;
       if (!pending) return;
       const { feature, lngLat } = pending;
-      const { mode, weights, scoreLabel } = propsRef.current;
-      const times = Object.fromEntries(
-        Object.keys(weights).map((c) => [c, feature.properties[`${mode}_${c}`] as number | undefined]),
-      );
-      setHover(feature.id === undefined ? undefined : String(feature.id));
-      popup.setLngLat(lngLat).setText(`${scoreLabel}: ${Math.round(score(times, weights))}`).addTo(map);
+      const id = feature.id === undefined ? undefined : String(feature.id);
+      setHover(id);
+      const value = id === undefined ? undefined : map.getFeatureState({ source: "r15-h3", sourceLayer: "h3", id }).score;
+      if (typeof value !== "number") {
+        popup.remove();
+        return;
+      }
+      popup.setLngLat(lngLat).setText(`${propsRef.current.scoreLabel}: ${Math.round(value)}`).addTo(map);
     };
     map.on("mousemove", "r15-h3", (e) => {
       const feature = e.features?.[0];
@@ -314,20 +372,38 @@ export function MapView(props: Props) {
     map.setStyle(baseStyle({ basemap, dark, lang }), { diff: false });
   }, [basemap, dark, lang]);
 
-  // Re-score the hexagons on the GPU when the profile, focus or selection changes.
-  const { mode, weights, point, focusDistrict } = props;
+  // Re-score the hexagons when the profile, the mode or the focused category changes. Scores
+  // are computed here and handed over as feature state, so no tile is read again (a paint
+  // expression over tile properties made MapLibre re-parse every tile on each change).
+  const { mode, weights, cells, point, focusDistrict } = props;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    rescore.current = () => {
+      if (!cells || !map.getSource("r15-h3")) return;
+      const scores = cellScores(cells, mode, weights);
+      for (let i = 0; i < scores.length; i++) {
+        map.setFeatureState({ source: "r15-h3", sourceLayer: "h3", id: cells.h3[i]! }, { score: scores[i] });
+      }
+      const categories = Object.entries(weights).filter(([, w]) => (w ?? 0) > 0).map(([c]) => c);
+      window.__reach15 = { map, heat: { mode, categories, cells: scores.length } };
+    };
+    rescore.current();
+  }, [cells, mode, weights]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.getLayer("r15-h3")) return;
-    map.setPaintProperty("r15-h3", "fill-color", heatColor(mode, weights, dark));
     map.setPaintProperty("r15-h3", "fill-opacity", h3Opacity(Boolean(point), focusDistrict));
-  }, [mode, weights, dark, point, focusDistrict]);
+  }, [point, focusDistrict]);
 
   const { isochrones, pois, commonArea } = props;
   useEffect(() => {
     const map = mapRef.current;
     // Before the first style.load there are no sources yet; style.load applies the data then.
-    if (map?.getSource("r15-iso")) applyData(map, { isochrones, pois, point, commonArea });
+    if (!map?.getSource("r15-iso")) return;
+    if (isochrones || pois.length || point || commonArea) hasData.current = true;
+    applyData(map, { isochrones, pois, point, commonArea });
   }, [isochrones, pois, point, commonArea]);
 
   // Lettered places and numbered spots are DOM markers: crisp type without a glyph server.
@@ -372,7 +448,14 @@ export function MapView(props: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    map.setPadding({ left: 0, top: 0, bottom: 0, right: point && wide() ? 392 : 0 });
+    const right = point && wide() ? PANEL_PAD : 0;
+    if (map.getPadding().right !== right) {
+      // Padding moves the camera centre. Move the centre with it, so the map under the
+      // cursor stays where it is when the panel opens or closes (it jumped sideways before).
+      const { clientWidth: w, clientHeight: h } = map.getContainer();
+      const centre = map.unproject([(w - right) / 2, h / 2]);
+      map.jumpTo({ center: centre, padding: { left: 0, top: 0, bottom: 0, right } });
+    }
     /** final: accept "no hexagon here" (the map is idle, so the tile is not just loading). */
     const outline = (final = false): boolean => {
       if (!map.getLayer("r15-h3-outline")) return false;
@@ -407,9 +490,19 @@ export function MapView(props: Props) {
     reselect.current = () => {
       if (!outline()) watch();
     };
-    const moving = point && (point.fly || !map.getBounds().contains([point.lon, point.lat]));
-    if (moving) {
+    let moving = false;
+    if (point?.fly) {
+      // A search result: go there and zoom to street level.
       map.flyTo({ center: [point.lon, point.lat], zoom: Math.max(map.getZoom(), 14), duration: MOVE_MS, essential: true });
+      moving = true;
+    } else if (point) {
+      // A click: the point is on screen. Pan only if the place panel now covers it.
+      const { clientWidth: w, clientHeight: h } = map.getContainer();
+      const p = map.project([point.lon, point.lat]);
+      if (p.x < 0 || p.y < 0 || p.x > w - right - 16 || p.y > h) {
+        map.easeTo({ center: [point.lon, point.lat], duration: MOVE_MS, essential: true });
+        moving = true;
+      }
     }
     // Clicks are already in view: outline now if the tile is there, else as soon as it renders.
     if (moving || !outline()) watch();

@@ -45,8 +45,8 @@ own priorities, across the whole city at once. Data is open (OpenStreetMap) and 
 - Three modes: walk, bike and public transport (BKK timetable, RAPTOR; per place only, the heatmap
   and ranking stay walk/bike). Five personas: balanced, family, student, senior, active; plus custom weights.
 - Score 0–100: per category `clamp(1 - seconds / 900, 0, 1)`, weighted mean. 15 minutes = 0 for that category.
-- Heatmap: H3 resolution-9 hexagons with raw times per category; scoring happens client-side
-  in MapLibre style expressions (no new tiles when weights change).
+- Heatmap: H3 resolution-9 hexagons; their raw times per category load once per release and
+  are scored client-side (no request and no tile re-read when weights change).
 - District ranking (23 districts), mean cell score with p25/p75.
 - "When?": a local time filters places by OSM opening hours (unknown hours count as open and are
   labelled) and sets the public transport departure. Public holidays are not modelled.

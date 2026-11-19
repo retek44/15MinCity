@@ -13,7 +13,8 @@ const OUT = resolve(dirname(fileURLToPath(import.meta.url)), "../../docs");
 const VIDEO_DIR = join(OUT, ".video");
 const SIZE = { width: 1280, height: 760 };
 
-const browser = await chromium.launch();
+// The real GPU where there is one: smoother frames than the software renderer.
+const browser = await chromium.launch({ args: ["--enable-gpu", "--use-angle=d3d11", "--ignore-gpu-blocklist"] });
 const context = await browser.newContext({ viewport: SIZE, recordVideo: { dir: VIDEO_DIR, size: SIZE }, locale: "en-GB" });
 await context.addInitScript(() => {
   localStorage.setItem("reach15.lang", "en");
@@ -24,7 +25,8 @@ const pause = (ms) => page.waitForTimeout(ms);
 const idle = () =>
   page.waitForFunction(() => {
     const map = window.__reach15?.map;
-    return map && map.loaded() && map.areTilesLoaded();
+    // heat: the hexagon scores are painted (travel times loaded from /api/v1/cells).
+    return map && map.loaded() && map.areTilesLoaded() && window.__reach15.heat?.cells > 0;
   }, null, { timeout: 30_000 });
 
 async function search(text, option) {

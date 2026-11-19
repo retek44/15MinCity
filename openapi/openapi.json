@@ -113,6 +113,45 @@
         "required" : [ "id", "label" ],
         "type" : "object"
       },
+      "CellTimes" : {
+        "description" : "Travel times of every heatmap hexagon, column by column. walk[c][i] is the walking time in seconds from hexagon h3[i] to the nearest place of categories[c]; null means not reachable within 30 minutes. The map scores hexagons from these in the browser.",
+        "properties" : {
+          "bike" : {
+            "items" : {
+              "items" : {
+                "format" : "int32",
+                "type" : "integer"
+              },
+              "type" : "array"
+            },
+            "type" : "array"
+          },
+          "categories" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "h3" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "walk" : {
+            "items" : {
+              "items" : {
+                "format" : "int32",
+                "type" : "integer"
+              },
+              "type" : "array"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "bike", "categories", "h3", "walk" ],
+        "type" : "object"
+      },
       "CommonGroundResponse" : {
         "properties" : {
           "anchors" : {
@@ -580,6 +619,25 @@
           }
         },
         "summary" : "POI categories",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/cells" : {
+      "get" : {
+        "operationId" : "cells",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CellTimes"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Travel times of every heatmap hexagon (the inputs of the map's colours)",
         "tags" : [ "geo-controller" ]
       }
     },

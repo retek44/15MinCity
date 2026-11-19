@@ -16,6 +16,8 @@ import { type DistrictFocus, type MapMarker, MapView, type PoiMarker } from "./m
 import { readUrlState, writeUrlState } from "./urlState";
 
 const MINUTES = [5, 10, 15];
+/** One empty list, so the map does not see "new" places on every render (and re-upload them). */
+const NO_POIS: PoiMarker[] = [];
 const BALANCED: Weights = {
   grocery: 1, pharmacy: 1, doctor: 1, school: 1, kindergarten: 1, park: 1, transit: 1, food: 1, gym: 1, library: 1,
 };
@@ -81,6 +83,8 @@ export function App() {
 
   const personas = useQuery({ queryKey: ["personas"], queryFn: api.personas, staleTime: Infinity });
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta, staleTime: Infinity });
+  /** Travel times of every hexagon: fetched once, re-scored in the browser on every change. */
+  const cells = useQuery({ queryKey: ["cells"], queryFn: api.cells, staleTime: Infinity });
   const basemap = useQuery({
     queryKey: ["catalog"],
     queryFn: async () => {
@@ -278,12 +282,13 @@ export function App() {
         <MapView
           mode={heat}
           weights={heatWeights}
+          cells={cells.data}
           dark={dark}
           lang={lang}
           basemap={basemap.data ?? false}
           point={point}
           isochrones={point && !isochrone.isError ? isochrone.data : undefined}
-          pois={point ? pois : []}
+          pois={point ? pois : NO_POIS}
           commonArea={commonData?.area as GeoJSON.Geometry | null | undefined}
           markers={markers}
           focusDistrict={districtFocus}
