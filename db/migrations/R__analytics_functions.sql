@@ -21,6 +21,7 @@ LANGUAGE plpgsql IMMUTABLE AS $$
 BEGIN
     CASE p_mode
         WHEN 'walk' THEN RETURN 80.0 / 60.0;
+        WHEN 'stepfree' THEN RETURN 80.0 / 60.0;
         WHEN 'bike' THEN RETURN 15.0 / 3.6;
         ELSE RAISE EXCEPTION 'unknown travel mode: %', p_mode USING ERRCODE = 'invalid_parameter_value';
     END CASE;
@@ -251,19 +252,31 @@ BEGIN
     WITH r AS (
         SELECT * FROM analytics.reach_seeded(p_vertices, p_seconds, p_mode, p_max_seconds, p_reverse)
     ),
+    -- The edges come with their columns straight from the source/target index lookups. Joining
+    -- them again by id let the planner (which guesses 1,000 rows for any set-returning function)
+    -- pick a sequential scan of all 260k edges: 0.5 s of a 0.6 s 10-minute walk.
     touched AS (
-        SELECT e.id FROM r JOIN routing.edges e ON e.source = r.node
-        UNION
-        SELECT e.id FROM r JOIN routing.edges e ON e.target = r.node
+        SELECT DISTINCT ON (x.id) x.*
+        FROM (
+            SELECT e.id, e.source, e.target, e.geom, e.cost_walk_s, e.reverse_cost_walk_s, e.cost_bike_s,
+                   e.reverse_cost_bike_s, e.cost_stepfree_s, e.reverse_cost_stepfree_s
+            FROM r JOIN routing.edges e ON e.source = r.node
+            UNION ALL
+            SELECT e.id, e.source, e.target, e.geom, e.cost_walk_s, e.reverse_cost_walk_s, e.cost_bike_s,
+                   e.reverse_cost_bike_s, e.cost_stepfree_s, e.reverse_cost_stepfree_s
+            FROM r JOIN routing.edges e ON e.target = r.node
+        ) x
+        ORDER BY x.id
     ),
     costs AS (
         SELECT e.geom,
-               CASE p_mode WHEN 'walk' THEN e.cost_walk_s ELSE e.cost_bike_s END                 AS fwd,
-               CASE p_mode WHEN 'walk' THEN e.reverse_cost_walk_s ELSE e.reverse_cost_bike_s END AS bwd,
+               CASE p_mode WHEN 'walk' THEN e.cost_walk_s WHEN 'stepfree' THEN e.cost_stepfree_s
+                           ELSE e.cost_bike_s END                                                 AS fwd,
+               CASE p_mode WHEN 'walk' THEN e.reverse_cost_walk_s WHEN 'stepfree' THEN e.reverse_cost_stepfree_s
+                           ELSE e.reverse_cost_bike_s END                                         AS bwd,
                rs.seconds AS s_sec,
                rt.seconds AS t_sec
-        FROM touched
-        JOIN routing.edges e USING (id)
+        FROM touched e
         LEFT JOIN r rs ON rs.node = e.source
         LEFT JOIN r rt ON rt.node = e.target
     ),
@@ -476,9 +489,10 @@ CREATE OR REPLACE FUNCTION analytics.cell_scores(p_weights jsonb, p_mode text DE
 RETURNS TABLE (h3 h3index, district_id bigint, score double precision)
 LANGUAGE plpgsql STABLE AS $$
 BEGIN
-    IF p_mode = 'transit' THEN
-        -- Precomputed per cell by the API (TransitHeatmap) after each data build.
-        IF NOT EXISTS (SELECT 1 FROM analytics.h3_category_time t WHERE t.mode = 'transit') THEN
+    IF p_mode IN ('transit', 'transit_evening') THEN
+        -- Precomputed per cell by the API (TransitHeatmap) after each data build: transit for a
+        -- weekday 08:00 departure, transit_evening for Sunday 20:00.
+        IF NOT EXISTS (SELECT 1 FROM analytics.h3_category_time t WHERE t.mode = p_mode) THEN
             RAISE EXCEPTION 'the public transport heatmap has not been computed for this data release'
                 USING ERRCODE = 'invalid_parameter_value';
         END IF;
@@ -630,5 +644,61 @@ BEGIN
                                 'seconds', to_jsonb(b.seconds))
                             ORDER BY b.score DESC, b.worst)
                      FROM best b), '[]'::jsonb);
+END
+$$;
+
+-- Better nearby: hexagons within p_max_seconds' walk of a point that score higher than the
+-- point's own hexagon, for people who like an area but not its exact street. At most one per
+-- resolution-8 parent (spread over the area), best score first, then the shorter walk. The walk
+-- counts to the hexagon's centre child (resolution 10), like the common-ground spots.
+CREATE OR REPLACE FUNCTION analytics.better_nearby(
+    p_lon double precision,
+    p_lat double precision,
+    p_weights jsonb,
+    p_score_mode text DEFAULT 'walk',
+    p_max_seconds double precision DEFAULT 600,
+    p_limit integer DEFAULT 3)
+RETURNS TABLE (h3 h3index, lon double precision, lat double precision, score double precision,
+               seconds double precision, here_score double precision)
+LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    s      record;
+    v_here h3index;
+BEGIN
+    IF p_max_seconds IS NULL OR p_max_seconds NOT BETWEEN 60 AND 1800 THEN
+        RAISE EXCEPTION 'the walk must be between 1 and 30 minutes' USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+    SELECT * INTO s FROM analytics.snap_seed(p_lon, p_lat);
+    v_here := h3_latlng_to_cell(ST_SetSRID(ST_MakePoint(p_lon, p_lat), 4326), 9);
+
+    RETURN QUERY
+    WITH scores AS MATERIALIZED (
+        SELECT * FROM analytics.cell_scores(p_weights, p_score_mode)
+    ),
+    here AS (
+        SELECT coalesce((SELECT x.score FROM scores x WHERE x.h3 = v_here), 0) AS score
+    ),
+    reached AS (
+        SELECT r.h3, r.seconds
+        -- Step-free scores are for people who cannot take steps: the walk there avoids them too.
+        FROM analytics.reach_cells(ARRAY[s.vertex_id], ARRAY[s.seconds],
+                                   CASE WHEN p_score_mode = 'stepfree' THEN 'stepfree' ELSE 'walk' END,
+                                   p_max_seconds, false, 10) r
+    ),
+    candidates AS (
+        SELECT DISTINCT ON (h3_cell_to_parent(x.h3, 8)) x.h3, x.score, r.seconds
+        FROM reached r
+        JOIN scores x
+          ON x.h3 = h3_cell_to_parent(r.h3, 9)
+         AND r.h3 = h3_cell_to_center_child(x.h3, 10)
+        WHERE x.h3 <> v_here
+        ORDER BY h3_cell_to_parent(x.h3, 8), x.score DESC, r.seconds
+    )
+    SELECT c.h3, ST_X(h3_cell_to_geometry(c.h3)), ST_Y(h3_cell_to_geometry(c.h3)), c.score, c.seconds, here.score
+    FROM candidates c, here
+    -- A point or more: smaller differences are noise from the median of a hexagon's streets.
+    WHERE c.score >= here.score + 1
+    ORDER BY c.score DESC, c.seconds
+    LIMIT p_limit;
 END
 $$;

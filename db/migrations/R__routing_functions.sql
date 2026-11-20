@@ -8,6 +8,17 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     SELECT length_m / (80.0 / 60.0) * CASE WHEN highway = 'steps' THEN 2.0 ELSE 1.0 END
 $$;
 
+-- Step-free walking (pushchair, wheelchair, a heavy suitcase): walking time, but no steps and
+-- no ways tagged wheelchair=no. -1 = not traversable. Kerbs and slopes are not modelled.
+CREATE OR REPLACE FUNCTION routing.stepfree_cost_s(length_m double precision, highway text, tags jsonb)
+RETURNS double precision
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+    SELECT CASE
+        WHEN highway = 'steps' OR tags ->> 'wheelchair' = 'no' THEN -1
+        ELSE routing.walk_cost_s(length_m, highway)
+    END
+$$;
+
 -- Cycling: 15 km/h on roads, pushing the bike (1.1 m/s) on footways where cycling is not allowed,
 -- no steps, oneway restrictions unless oneway:bicycle=no. -1 = not traversable.
 -- bicycle=no on a footway or pedestrian street means "no cycling", not "no bikes": whoever pushes
@@ -153,11 +164,15 @@ BEGIN
         JOIN osm.walk_ways w USING (way_id)
     )
     INSERT INTO routing.edges (way_id, source, target, highway, length_m,
-                               cost_walk_s, reverse_cost_walk_s, cost_bike_s, reverse_cost_bike_s, geom)
+                               cost_walk_s, reverse_cost_walk_s, cost_bike_s, reverse_cost_bike_s,
+                               cost_stepfree_s, reverse_cost_stepfree_s, geom)
     SELECT m.way_id, m.source, m.target, m.highway, m.length_m,
            routing.walk_cost_s(m.length_m, m.highway),
            routing.walk_cost_s(m.length_m, m.highway),
-           b.cost, b.reverse_cost, m.geom
+           b.cost, b.reverse_cost,
+           routing.stepfree_cost_s(m.length_m, m.highway, m.tags),
+           routing.stepfree_cost_s(m.length_m, m.highway, m.tags),
+           m.geom
     FROM measured m
     CROSS JOIN LATERAL routing.bike_costs(m.length_m, m.highway, m.tags) b
     WHERE m.length_m > 0;

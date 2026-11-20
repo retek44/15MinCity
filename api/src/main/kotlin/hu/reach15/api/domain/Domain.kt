@@ -3,18 +3,39 @@ package hu.reach15.api.domain
 import com.fasterxml.jackson.annotation.JsonValue
 
 /**
- * Travel modes; [id] is the value used in URLs, JSON and the database. Walking and cycling are
- * precomputed per street vertex; public transport per H3 cell for a weekday 08:00 departure
- * (TransitHeatmap), and searched on demand for a place at any time.
+ * Travel modes; [id] is the value used in URLs, JSON and the database. Walking, step-free walking
+ * (no steps: pushchair, wheelchair) and cycling are precomputed per street vertex; public transport
+ * per H3 cell for fixed departures (TransitHeatmap), and searched on demand for a place at any time.
  */
 enum class Mode(@get:JsonValue val id: String) {
     WALK("walk"),
     BIKE("bike"),
+    STEPFREE("stepfree"),
     TRANSIT("transit"),
     ;
 
     companion object {
         fun parse(value: String): Mode =
+            entries.firstOrNull { it.id.equals(value.trim(), ignoreCase = true) }
+                ?: throw IllegalArgumentException("unknown mode '$value', expected one of ${entries.map { it.id }}")
+    }
+}
+
+/**
+ * What a heatmap hexagon (and the district ranking) can be scored by: every precomputed travel
+ * mode, public transport once per precomputed departure ([TRANSIT]: weekday 08:00,
+ * [TRANSIT_EVENING]: Sunday 20:00).
+ */
+enum class HeatMode(@get:JsonValue val id: String) {
+    WALK("walk"),
+    BIKE("bike"),
+    STEPFREE("stepfree"),
+    TRANSIT("transit"),
+    TRANSIT_EVENING("transit_evening"),
+    ;
+
+    companion object {
+        fun parse(value: String): HeatMode =
             entries.firstOrNull { it.id.equals(value.trim(), ignoreCase = true) }
                 ?: throw IllegalArgumentException("unknown mode '$value', expected one of ${entries.map { it.id }}")
     }

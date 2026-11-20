@@ -1,4 +1,5 @@
-import type { AccessResponse, CategoryId } from "../api/client";
+import { useState } from "react";
+import type { AccessResponse, CategoryId, NearbyPlace, NearbyResponse } from "../api/client";
 import type { Strings } from "../i18n";
 import { formatAt } from "../when";
 import { Icon } from "./Icon";
@@ -20,6 +21,9 @@ interface Props {
   /** Pin the place to the comparison: possible, done already, or three are pinned. */
   compare: "add" | "added" | "full";
   onCompare: () => void;
+  /** Higher-scoring hexagons within a short walk (absent while loading or when there are none). */
+  nearby?: NearbyResponse;
+  onNearby: (place: NearbyPlace) => void;
 }
 
 const LIMIT_SECONDS = 15 * 60;
@@ -36,11 +40,48 @@ function CloseButton({ t, onClear }: Pick<Props, "t" | "onClear">) {
 }
 
 /**
+ * Shares the link (it already holds the point, mode, profile, time and pinned places): the
+ * system share sheet where there is one (phones), else the clipboard, with a spoken confirmation.
+ */
+function ShareButton({ t, title, score }: { t: Strings; title: string; score: number }) {
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    const url = window.location.href;
+    if (typeof navigator.share === "function" && window.matchMedia?.("(pointer: coarse)").matches) {
+      try {
+        await navigator.share({ title: `Reach15 · ${title}`, text: t.shareText(title, score), url });
+        return;
+      } catch {
+        /* dismissed, or not allowed: fall back to the clipboard */
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt(t.shareManual, url);
+    }
+  };
+  return (
+    <>
+      <button type="button" className="place-compare" onClick={share} data-testid="share">
+        <Icon name={copied ? "check" : "share"} />
+        {copied ? t.shareCopied : t.share}
+      </button>
+      <span className="visually-hidden" role="status">
+        {copied ? t.shareCopied : ""}
+      </span>
+    </>
+  );
+}
+
+/**
  * The selected point: the score as a poster numeral, then the minutes behind it, one row per
  * category, nearest first. Pressing a row recolours the map by that category alone.
  */
 export function PlacePanel(props: Props) {
-  const { t, access, loading, error, minutes, scoreFor, district, focusCategory, lang, onFocusCategory, onClear, compare, onCompare } = props;
+  const { t, access, loading, error, minutes, scoreFor, district, focusCategory, lang, onFocusCategory, onClear, compare, onCompare, nearby, onNearby } = props;
   if (error) {
     return (
       <section className="place" role="alert">
@@ -81,17 +122,20 @@ export function PlacePanel(props: Props) {
         </div>
         <CloseButton t={t} onClear={onClear} />
       </header>
-      <button
-        type="button"
-        className="place-compare"
-        aria-pressed={compare === "added"}
-        disabled={compare !== "add"}
-        onClick={onCompare}
-        data-testid="compare-add"
-      >
-        <Icon name={compare === "added" ? "check" : "plus"} />
-        {compare === "added" ? t.compareAdded : compare === "full" ? t.compareFull : t.compareAdd}
-      </button>
+      <div className="place-actions">
+        <button
+          type="button"
+          className="place-compare"
+          aria-pressed={compare === "added"}
+          disabled={compare !== "add"}
+          onClick={onCompare}
+          data-testid="compare-add"
+        >
+          <Icon name={compare === "added" ? "check" : "plus"} />
+          {compare === "added" ? t.compareAdded : compare === "full" ? t.compareFull : t.compareAdd}
+        </button>
+        <ShareButton t={t} title={title} score={Math.round(access.score)} />
+      </div>
 
       <div className="score">
         <span className="score-value num" data-testid="score">
@@ -111,6 +155,11 @@ export function PlacePanel(props: Props) {
         </p>
       ) : (
         access.at && <p className="place-when">{t.openAt(formatAt(access.at, lang))}</p>
+      )}
+      {access.mode === "stepfree" && (
+        <p className="place-when" data-testid="stepfree-note">
+          {t.stepFreeNote}
+        </p>
       )}
       {access.holiday && (
         <p className="place-when" data-testid="holiday-note">
@@ -166,6 +215,36 @@ export function PlacePanel(props: Props) {
         })}
       </ul>
 
+      {nearby && nearby.places.length > 0 && (
+        <section className="nearby" aria-labelledby="nearby-title" data-testid="nearby">
+          <h3 className="section-title" id="nearby-title">
+            {t.nearbyTitle}
+          </h3>
+          <p className="nearby-caption">{t.nearbyCaption(nearby.minutes, Math.round(nearby.hereScore))}</p>
+          <ol className="nearby-list">
+            {nearby.places.map((p) => {
+              const label = p.address?.label ?? t.nearbyUnnamed;
+              return (
+                <li key={p.h3}>
+                  <button
+                    type="button"
+                    className="nearby-place"
+                    aria-label={t.nearbyShow(label, Math.round(p.score))}
+                    onClick={() => onNearby(p)}
+                  >
+                    <span className="nearby-score num">{Math.round(p.score)}</span>
+                    <span className="nearby-name">
+                      {label}
+                      <span className="nearby-walk">{t.nearbyWalk(fmtMinutes(p.seconds))}</span>
+                    </span>
+                    <Icon name="chevron" />
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
     </section>
   );
 }

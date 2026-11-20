@@ -45,7 +45,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Travel times of every heatmap hexagon (the inputs of the map's colours) */
+        /**
+         * Travel times of every heatmap hexagon for one mode (the inputs of the map's colours)
+         * @description One mode per request, so the map loads only what it shows: walk, bike, stepfree, transit (weekday 08:00) or transit_evening (Sunday 20:00). Hexagons are in the same order for every mode.
+         */
         get: operations["cells"];
         put?: never;
         post?: never;
@@ -126,6 +129,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nearby": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Better nearby: hexagons within a short walk that score higher than the point's own
+         * @description For a point and a profile, up to `limit` hexagons reachable within `minutes` on foot whose score (for `mode`: walk, bike, stepfree, transit or transit_evening) beats the point's hexagon, one per neighbourhood (resolution-8 parent), best first. Each comes with the nearest address.
+         */
+        get: operations["nearby"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/personas": {
         parameters: {
             query?: never;
@@ -192,7 +215,7 @@ export interface components {
             /** @description Hungarian public holiday on the day of `at` (or of the transit departure), e.g. easter_monday: holiday opening hours (PH) apply where mapped; null on other days */
             holiday?: string | null;
             /** @enum {string} */
-            mode: "walk" | "bike" | "transit";
+            mode: "walk" | "bike" | "stepfree" | "transit";
             point: components["schemas"]["LonLat"];
             /**
              * Format: double
@@ -209,7 +232,7 @@ export interface components {
             /** Format: int32 */
             minutes: number;
             /** @enum {string} */
-            mode: "walk" | "bike" | "transit";
+            mode: "walk" | "bike" | "stepfree" | "transit";
         };
         CategoryAccess: {
             /** @enum {string} */
@@ -236,12 +259,12 @@ export interface components {
         };
         /** @description Travel times of every heatmap hexagon, column by column. walk[c][i] is the walking time in seconds from hexagon h3[i] to the nearest place of categories[c]; null means not reachable within 30 minutes. The map scores hexagons from these in the browser. */
         CellTimes: {
-            bike: number[][];
             categories: string[];
             h3: string[];
-            /** @description Walking and public transport, leaving at 08:00 on a weekday; all null until computed */
-            transit: number[][];
-            walk: number[][];
+            /** @enum {string} */
+            mode: "walk" | "bike" | "stepfree" | "transit" | "transit_evening";
+            /** @description Per category (in `categories` order), seconds per hexagon (in `h3` order); null = over 30 minutes or not computed */
+            times: number[][];
         };
         CommonGroundResponse: {
             anchors: components["schemas"]["Anchor"][];
@@ -322,6 +345,40 @@ export interface components {
             lat: number;
             /** Format: double */
             lon: number;
+        };
+        NearbyPlace: {
+            address?: components["schemas"]["ReverseResult"] | null;
+            h3: string;
+            /** Format: double */
+            lat: number;
+            /** Format: double */
+            lon: number;
+            /**
+             * Format: double
+             * @description Score of the hexagon for the requested profile, 0..100
+             */
+            score: number;
+            /**
+             * Format: double
+             * @description Walking time from the point to the hexagon's centre, seconds
+             */
+            seconds: number;
+        };
+        /** @description Hexagons within a short walk that score higher than the point's own hexagon */
+        NearbyResponse: {
+            /**
+             * Format: double
+             * @description Score of the point's own hexagon for the requested profile, 0..100
+             */
+            hereScore: number;
+            /**
+             * Format: int32
+             * @description Walking limit, minutes
+             */
+            minutes: number;
+            /** @enum {string} */
+            mode: "walk" | "bike" | "stepfree" | "transit" | "transit_evening";
+            places: components["schemas"]["NearbyPlace"][];
         };
         PersonaDto: {
             id: string;
@@ -447,7 +504,9 @@ export interface operations {
     };
     cells: {
         parameters: {
-            query?: never;
+            query?: {
+                mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -469,7 +528,7 @@ export interface operations {
         parameters: {
             query: {
                 places: string;
-                /** @description Travel mode the spots are scored for (walk or bike) */
+                /** @description Travel mode the spots are scored for (walk, bike, stepfree or transit) */
                 mode?: string;
                 persona?: string;
                 weights?: string;
@@ -561,6 +620,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataRelease"];
+                };
+            };
+        };
+    };
+    nearby: {
+        parameters: {
+            query: {
+                lon: number;
+                lat: number;
+                mode?: string;
+                persona?: string;
+                weights?: string;
+                minutes?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NearbyResponse"];
                 };
             };
         };

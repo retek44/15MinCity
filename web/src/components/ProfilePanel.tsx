@@ -18,16 +18,31 @@ const CATEGORY_ORDER: CategoryId[] = [
 ];
 
 export function ProfilePanel({ t, mode, onMode, personas, personaId, onPersona, weights, onWeights }: Props) {
+  const onFoot = mode === "walk" || mode === "stepfree";
   return (
     <section className="controls" aria-label={t.persona}>
       <div className="segmented" role="radiogroup" aria-label={t.travelMode}>
-        {(["walk", "bike", "transit"] as const).map((m) => (
-          <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => onMode(m)}>
-            <Icon name={m} />
-            {t[m]}
-          </button>
-        ))}
+        {(["walk", "bike", "transit"] as const).map((m) => {
+          // Step-free is a kind of walking: "Walk" stays selected, and keeps step-free on.
+          const checked = mode === m || (m === "walk" && onFoot);
+          return (
+            <button key={m} type="button" role="radio" aria-checked={checked} onClick={() => !checked && onMode(m)}>
+              <Icon name={m} />
+              {t[m]}
+            </button>
+          );
+        })}
       </div>
+      {onFoot && (
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={mode === "stepfree"}
+            onChange={(e) => onMode(e.target.checked ? "stepfree" : "walk")}
+          />
+          <span>{t.stepFree}</span>
+        </label>
+      )}
 
       <div className="chips" role="radiogroup" aria-label={t.persona}>
         {personas.map((p) => (

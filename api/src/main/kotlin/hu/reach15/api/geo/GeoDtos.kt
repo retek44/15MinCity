@@ -1,6 +1,7 @@
 package hu.reach15.api.geo
 
 import hu.reach15.api.domain.Category
+import hu.reach15.api.domain.HeatMode
 import hu.reach15.api.domain.LonLat
 import hu.reach15.api.domain.Mode
 import io.swagger.v3.oas.annotations.media.Schema
@@ -89,6 +90,27 @@ data class Anchor(
     val minutes: Int,
 )
 
+@Schema(description = "Hexagons within a short walk that score higher than the point's own hexagon")
+data class NearbyResponse(
+    val mode: HeatMode,
+    @get:Schema(description = "Walking limit, minutes")
+    val minutes: Int,
+    @get:Schema(description = "Score of the point's own hexagon for the requested profile, 0..100")
+    val hereScore: Double,
+    val places: List<NearbyPlace>,
+)
+
+data class NearbyPlace(
+    val h3: String,
+    val lon: Double,
+    val lat: Double,
+    @get:Schema(description = "Score of the hexagon for the requested profile, 0..100")
+    val score: Double,
+    @get:Schema(description = "Walking time from the point to the hexagon's centre, seconds")
+    val seconds: Double,
+    val address: ReverseResult?,
+)
+
 data class Spot(
     val lon: Double,
     val lat: Double,
@@ -135,8 +157,7 @@ data class DataRelease(val sourceFile: String, val importedAt: OffsetDateTime, v
 data class CellTimes(
     val categories: List<String>,
     val h3: List<String>,
-    val walk: List<List<Int?>>,
-    val bike: List<List<Int?>>,
-    @get:Schema(description = "Walking and public transport, leaving at 08:00 on a weekday; all null until computed")
-    val transit: List<List<Int?>>,
+    val mode: HeatMode,
+    @get:Schema(description = "Per category (in `categories` order), seconds per hexagon (in `h3` order); null = over 30 minutes or not computed")
+    val times: List<List<Int?>>,
 )

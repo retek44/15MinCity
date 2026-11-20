@@ -18,6 +18,7 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import psycopg
@@ -35,7 +36,7 @@ PROTOMAPS_BUILD = "https://build.protomaps.com/{date}.pmtiles"
 USER_AGENT = "reach15-etl/0.1 (+https://github.com/)"
 # Budapest city limits plus ~1 km margin, so isochrones near the border are not cut off.
 BUDAPEST_BBOX = "18.91,47.34,19.35,47.62"
-MODES = ("walk", "bike")
+MODES = ("walk", "bike", "stepfree")
 
 
 def connect() -> psycopg.Connection:
@@ -178,6 +179,21 @@ def cmd_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def category_times_parallel(modes: list[str], timings: dict[str, float]) -> None:
+    """One connection per mode, in parallel: each mode is an independent set of Dijkstra runs
+    (pgRouting is single-threaded per query), so three modes take about as long as one."""
+
+    def one(mode: str) -> object:
+        with connect() as c:
+            c.autocommit = True
+            return c.execute("SELECT analytics.compute_category_times(%s)", (mode,)).fetchone()[0]
+
+    with ThreadPoolExecutor(max_workers=len(modes)) as pool:
+        futures = [pool.submit(timed, timings, f"category_times_{m}", lambda m=m: one(m)) for m in modes]
+        for future in futures:
+            future.result()
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     modes = [m.strip() for m in args.modes.split(",") if m.strip()]
     unknown = set(modes) - set(MODES)
@@ -200,12 +216,7 @@ def cmd_build(args: argparse.Namespace) -> int:
         if scalar("SELECT EXISTS (SELECT 1 FROM transit.stops)")[0]:
             timed(timings, "transit_snap_stops", lambda: scalar("SELECT transit.snap_stops()")[0])
             timed(timings, "transit_transfers", lambda: scalar("SELECT transit.build_transfers()")[0])
-        for mode in modes:
-            timed(
-                timings,
-                f"category_times_{mode}",
-                lambda m=mode: scalar("SELECT analytics.compute_category_times(%s)", (m,))[0],
-            )
+        timed(timings, "category_times", lambda: category_times_parallel(modes, timings))
         timed(
             timings,
             "h3_cells",
@@ -312,7 +323,7 @@ def parser() -> argparse.ArgumentParser:
     g.set_defaults(fn=cmd_gtfs)
 
     def add_build_args(sp: argparse.ArgumentParser) -> None:
-        sp.add_argument("--modes", default="walk,bike", help="comma separated: walk,bike")
+        sp.add_argument("--modes", default="walk,bike,stepfree", help="comma separated: walk,bike,stepfree")
         sp.add_argument("--h3-resolution", type=int, default=9)
         sp.add_argument("--dem", help="elevation model (GeoTIFF) for hill-aware cycling costs")
 

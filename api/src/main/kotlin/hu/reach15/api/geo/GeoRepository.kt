@@ -1,6 +1,7 @@
 package hu.reach15.api.geo
 
 import hu.reach15.api.domain.Category
+import hu.reach15.api.domain.HeatMode
 import hu.reach15.api.domain.Mode
 import hu.reach15.api.domain.Weights
 import org.springframework.cache.annotation.Cacheable
@@ -135,7 +136,7 @@ class GeoRepository(
     private fun intArray(values: List<Int>) = values.joinToString(",", "{", "}")
 
     @Cacheable("ranking")
-    fun districtRanking(weights: Weights, mode: Mode): List<DistrictScore> =
+    fun districtRanking(weights: Weights, mode: HeatMode): List<DistrictScore> =
         jdbc.sql("SELECT * FROM analytics.district_ranking(?::jsonb, ?)")
             .params(json.writeValueAsString(weights.toJson()), mode.id)
             .query { rs, row ->
@@ -151,25 +152,49 @@ class GeoRepository(
                 )
             }.list()
 
-    /** One query, one array per column: about 9,000 hexagons x 20 times for Budapest. */
+    /** One query, one array per category: about 9,000 hexagons x 10 times for Budapest. */
     @Cacheable("cells")
-    fun cellTimes(): CellTimes {
-        val modes = listOf(Mode.WALK, Mode.BIKE, Mode.TRANSIT)
-        val columns = modes.flatMap { m -> Category.entries.map { c -> "${m.id}_${c.id}" } }
-        val select = columns.joinToString(", ") { "array_agg((times ->> '$it')::int ORDER BY h3) AS $it" }
+    fun cellTimes(mode: HeatMode): CellTimes {
+        val select = Category.entries.joinToString(", ") {
+            "array_agg((times ->> '${mode.id}_${it.id}')::int ORDER BY h3) AS ${it.id}"
+        }
         return jdbc.sql("SELECT array_agg(h3::text ORDER BY h3) AS h3, $select FROM analytics.h3_cell")
             .query { rs, _ ->
                 fun ints(column: String): List<Int?> =
                     (rs.getArray(column)?.array as Array<*>? ?: emptyArray<Any?>()).map { (it as Number?)?.toInt() }
-                val byMode = modes.associateWith { m -> Category.entries.map { c -> ints("${m.id}_${c.id}") } }
                 CellTimes(
                     categories = Category.entries.map { it.id },
                     h3 = (rs.getArray("h3")?.array as Array<*>? ?: emptyArray<Any?>()).map { it as String },
-                    walk = byMode.getValue(Mode.WALK),
-                    bike = byMode.getValue(Mode.BIKE),
-                    transit = byMode.getValue(Mode.TRANSIT),
+                    mode = mode,
+                    times = Category.entries.map { ints(it.id) },
                 )
             }.single()
+    }
+
+    /** Higher-scoring hexagons within [maxSeconds]' walk of a point (analytics.better_nearby). */
+    @Cacheable("nearby")
+    fun betterNearby(lon: Double, lat: Double, weights: Weights, mode: HeatMode, maxSeconds: Int, limit: Int): NearbyResponse {
+        var here = Double.NaN
+        val places = jdbc.sql("SELECT * FROM analytics.better_nearby(?, ?, ?::jsonb, ?, ?, ?)")
+            .params(lon, lat, json.writeValueAsString(weights.toJson()), mode.id, maxSeconds.toDouble(), limit)
+            .query { rs, _ ->
+                here = rs.getDouble("here_score")
+                NearbyPlace(
+                    h3 = rs.getString("h3"),
+                    lon = rs.getDouble("lon"),
+                    lat = rs.getDouble("lat"),
+                    score = rs.getDouble("score"),
+                    seconds = rs.getDouble("seconds"),
+                    address = null,
+                )
+            }.list()
+        if (here.isNaN()) {
+            here = jdbc.sql(
+                "SELECT coalesce((SELECT score FROM analytics.cell_scores(?::jsonb, ?) " +
+                    "WHERE h3 = h3_latlng_to_cell(ST_SetSRID(ST_MakePoint(?, ?), 4326), 9)), 0)",
+            ).params(json.writeValueAsString(weights.toJson()), mode.id, lon, lat).query(Double::class.java).single()
+        }
+        return NearbyResponse(mode, maxSeconds / 60, here, places.map { it.copy(address = reverse(it.lon, it.lat)) })
     }
 
     /** Key of the Hungarian public holiday on a date (analytics.hu_holiday), or null. */

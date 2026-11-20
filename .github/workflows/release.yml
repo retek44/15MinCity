@@ -79,8 +79,10 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
       - name: Vulnerability gate (critical, fixable)
-        uses: aquasecurity/trivy-action@v0.33.1
+        # Pinned by commit (v0.36.0), like ci.yml: the Trivy release v0.33.1 installs is deleted.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
+          version: v0.76.2
           image-ref: ${{ env.REGISTRY }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           severity: CRITICAL
           ignore-unfixed: true
@@ -123,6 +125,7 @@ jobs:
             cd /opt/reach15
             git fetch --quiet origin && git checkout --quiet --detach ${{ github.sha }}
             TAG=${{ needs.images.outputs.tag }} REGISTRY=${{ env.REGISTRY }} deploy/bluegreen.sh
+      - uses: grafana/setup-k6-action@v1
       - name: k6 latency budgets against staging (real Budapest data)
         uses: grafana/run-k6-action@v1
         with:

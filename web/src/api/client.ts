@@ -12,13 +12,18 @@ export type DistrictScore = Schemas["DistrictScore"];
 export type Persona = Schemas["PersonaDto"];
 export type Category = Schemas["CategoryDto"];
 export type DataRelease = Schemas["DataRelease"];
-/** walk[c][i] / bike[c][i]: seconds, or null (not reachable within 30 minutes; OpenAPI drops the null). */
-export type CellTimes = Omit<Schemas["CellTimes"], "walk" | "bike" | "transit"> & {
-  walk: (number | null)[][];
-  bike: (number | null)[][];
-  /** Leaving at 08:00 on a weekday; all null when the release has no public transport heatmap. */
-  transit: (number | null)[][];
-};
+/**
+ * What the heatmap is scored by: a travel mode, or public transport for one precomputed departure
+ * (transit: weekday 08:00, transit_evening: Sunday 20:00).
+ */
+export type HeatMode = Schemas["CellTimes"]["mode"];
+/**
+ * One heat mode's travel times: times[c][i] is the seconds from hexagon h3[i] to the nearest place
+ * of categories[c], or null (over 30 minutes, or not computed; OpenAPI drops the null).
+ */
+export type CellTimes = Omit<Schemas["CellTimes"], "times"> & { times: (number | null)[][] };
+export type NearbyResponse = Schemas["NearbyResponse"];
+export type NearbyPlace = Schemas["NearbyPlace"];
 export type Weights = Partial<Record<CategoryId, number>>;
 export type CommonGroundResponse = Schemas["CommonGroundResponse"];
 export type Spot = Schemas["Spot"];
@@ -86,15 +91,21 @@ export const api = {
   categories: () => get<Category[]>(`${BASE}/categories`),
   personas: () => get<Persona[]>(`${BASE}/personas`),
   meta: () => get<DataRelease>(`${BASE}/meta`),
-  cells: () => get<CellTimes>(`${BASE}/cells`),
+  cells: (mode: HeatMode) => get<CellTimes>(`${BASE}/cells`, { mode }),
+  nearby: (lon: number, lat: number, mode: HeatMode, weights: Weights, minutes: number) =>
+    get<NearbyResponse>(`${BASE}/nearby`, { lon, lat, mode, weights: weightsParam(weights), minutes }),
   search: (q: string, near: { lon: number; lat: number } | undefined, signal?: AbortSignal) =>
     get<SearchResult[]>(`${BASE}/search`, { q, limit: 8, lon: near?.lon, lat: near?.lat }, signal),
   access: (lon: number, lat: number, mode: Mode, weights: Weights, at?: string) =>
     get<AccessResponse>(`${BASE}/access`, { lon, lat, mode, weights: weightsParam(weights), at }),
   isochrone: (lon: number, lat: number, mode: Mode, minutes: number[], at?: string) =>
     get<IsochroneCollection>(`${BASE}/isochrone`, { lon, lat, mode, minutes: minutes.join(","), at }),
-  ranking: (mode: Mode, weights: Weights) =>
+  ranking: (mode: HeatMode, weights: Weights) =>
     get<DistrictScore[]>(`${BASE}/districts/ranking`, { mode, weights: weightsParam(weights) }),
   commonGround: (anchors: Anchor[], mode: Mode, weights: Weights, at?: string) =>
     get<CommonGroundResponse>(`${BASE}/common-ground`, { places: placesParam(anchors), mode, weights: weightsParam(weights), at }),
 };
+
+/** The heatmap's mode for a travel mode and "When?": public transport has two precomputed departures. */
+export const heatModeOf = (mode: Mode, when: string): HeatMode =>
+  mode === "transit" ? (when === "su20" ? "transit_evening" : "transit") : mode;

@@ -17,7 +17,24 @@ export default defineConfig({
   optimizeDeps: { exclude: ["maplibre-gl"] },
   server: { port: 5173, proxy },
   preview: { port: 4173, proxy },
-  build: { sourcemap: true, chunkSizeWarningLimit: 1500 },
+  build: {
+    sourcemap: true,
+    chunkSizeWarningLimit: 1100,
+    rolldownOptions: {
+      output: {
+        // Libraries in their own chunks: a release that changes only the app (most of them) keeps
+        // the browser's cached MapLibre and React, about 90 % of the JavaScript.
+        advancedChunks: {
+          groups: [
+            // Module ids use forward slashes on every platform.
+            { name: "maplibre", test: /node_modules\/maplibre-gl\// },
+            { name: "react", test: /node_modules\/(react|react-dom|scheduler)\// },
+            { name: "vendor", test: /node_modules\// },
+          ],
+        },
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],

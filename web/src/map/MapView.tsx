@@ -6,7 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // bundling (production builds 404 on the worker). Emit the worker as an asset and point at it.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef } from "react";
-import type { CellTimes, Mode, IsochroneCollection, Weights } from "../api/client";
+import type { CellTimes, HeatMode, IsochroneCollection, Weights } from "../api/client";
 import { cellScores, heatColor } from "../scoring";
 import { BUDAPEST_BOUNDS, baseStyle, firstSymbolLayer, h3Source, INITIAL_VIEW } from "./style";
 
@@ -38,10 +38,9 @@ export interface MapMarker {
 }
 
 interface Props {
-  mode: Mode;
   /** Weights the heatmap is coloured by (the profile, or one focused category). */
   weights: Weights;
-  /** Travel times of every hexagon; the map scores them and paints the scores. */
+  /** Travel times of every hexagon for the heat mode shown; the map scores them and paints the scores. */
   cells?: CellTimes;
   dark: boolean;
   lang: string;
@@ -63,7 +62,7 @@ interface Props {
 declare global {
   interface Window {
     /** Exposed for end-to-end tests: map state is asserted, not pixels. */
-    __reach15?: { map: MlMap; heat?: { mode: Mode; categories: string[]; cells: number } };
+    __reach15?: { map: MlMap; heat?: { mode: HeatMode; categories: string[]; cells: number } };
   }
 }
 
@@ -375,21 +374,21 @@ export function MapView(props: Props) {
   // Re-score the hexagons when the profile, the mode or the focused category changes. Scores
   // are computed here and handed over as feature state, so no tile is read again (a paint
   // expression over tile properties made MapLibre re-parse every tile on each change).
-  const { mode, weights, cells, point, focusDistrict } = props;
+  const { weights, cells, point, focusDistrict } = props;
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     rescore.current = () => {
       if (!cells || !map.getSource("r15-h3")) return;
-      const scores = cellScores(cells, mode, weights);
+      const scores = cellScores(cells, weights);
       for (let i = 0; i < scores.length; i++) {
         map.setFeatureState({ source: "r15-h3", sourceLayer: "h3", id: cells.h3[i]! }, { score: scores[i] });
       }
       const categories = Object.entries(weights).filter(([, w]) => (w ?? 0) > 0).map(([c]) => c);
-      window.__reach15 = { map, heat: { mode, categories, cells: scores.length } };
+      window.__reach15 = { map, heat: { mode: cells.mode, categories, cells: scores.length } };
     };
     rescore.current();
-  }, [cells, mode, weights]);
+  }, [cells, weights]);
 
   useEffect(() => {
     const map = mapRef.current;

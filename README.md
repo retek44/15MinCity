@@ -6,13 +6,13 @@ neighbourhood, ranks the districts, lets you re-weight the score for how you liv
 senior...), checks what is actually open at a given time, and finds where a household should live
 so that everyone's office, school or family is within reach.
 
-![Reach15 demo: heatmap, a place's score and isochrones, public transport, opening hours and "where should we live?"](docs/demo.gif)
+![Reach15 demo: heatmap, a place's score and isochrones, public transport, holidays, hill-aware cycling, step-free walking, better nearby, compare and "where should we live?"](docs/demo.gif)
 
 It is built on OpenStreetMap data, PostgreSQL/PostGIS, pgRouting and H3, a Kotlin/Spring Boot API,
 Martin vector tiles and a React + MapLibre GL front end. Tests are a first-class part of the design:
 every layer has its own suite, and the CI/CD pipeline gates both code releases and weekly data releases.
 
-> **Status:** phases 1–6 are done (data, API, tiles, front end, delivery, extensions). See the [roadmap](#roadmap).
+> **Status:** phases 1–8 are done (data, API, tiles, front end, delivery, extensions, depth, access). See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -52,10 +52,11 @@ every layer has its own suite, and the CI/CD pipeline gates both code releases a
 | `GET /api/v1/search?q=` | addresses, streets and places; accent- and abbreviation-insensitive (`andrassy u 1`, `nyugati pu`) |
 | `GET /api/v1/reverse?lon=&lat=` | nearest address |
 | `GET /api/v1/access?lon=&lat=&mode=&persona=&weights=&at=` | score 0–100, travel time and nearest place per category; `mode=transit` rides BKK's timetable, `at` (local time) keeps only places open then, and names a public holiday |
-| `GET /api/v1/isochrone?lon=&lat=&mode=&minutes=5,10,15&at=` | GeoJSON multipolygons (walk, bike, or transit leaving at `at`) |
+| `GET /api/v1/isochrone?lon=&lat=&mode=&minutes=5,10,15&at=` | GeoJSON multipolygons (walk, step-free, bike, or transit leaving at `at`) |
+| `GET /api/v1/nearby?lon=&lat=&mode=&persona=&weights=&minutes=10` | "better nearby": hexagons within a short walk that score higher than the point's own, spread out, best first, with the nearest address |
 | `GET /api/v1/common-ground?places=lon,lat,mode,minutes;...` | "where should we live?": the area from which up to 4 places are each reachable in their own limit, and the best-scoring spots inside |
-| `GET /api/v1/districts/ranking?mode=&persona=&weights=` | districts ranked by mean H3 cell score (area-weighted, not population-weighted), with p25/p75; walk, bike, or transit (weekday 08:00) |
-| `GET /api/v1/cells` | every heatmap hexagon's travel times per category, column by column, for walk, bike and transit; the browser scores them |
+| `GET /api/v1/districts/ranking?mode=&persona=&weights=` | districts ranked by mean H3 cell score (area-weighted, not population-weighted), with p25/p75; walk, step-free, bike, transit (weekday 08:00) or transit_evening (Sunday 20:00) |
+| `GET /api/v1/cells?mode=` | every heatmap hexagon's travel times per category, column by column, for one mode (as the ranking); the browser scores them |
 | `GET /api/v1/categories`, `/personas`, `/meta` | reference data and the active data release |
 
 The contract is [`openapi/openapi.json`](openapi/openapi.json); the front end's types are generated from it.
@@ -84,19 +85,23 @@ towards them. The synthetic grid catches this: 168 s is correct, 120 s means the
 |---|---|---|---|
 | Category precompute | `pgr_drivingDistance(equicost)`: 47 s per category | super-source + `pgr_dijkstraCost`: 1.3 s | ~35× faster, identical results (checked cell by cell) |
 | Isochrone (walk, 15 min) | `ST_Buffer` of reached edges: 20 s | union of H3 res-10 cells: ~1 s | bike went from 4+ min to ~1 s |
-| Full Budapest build | | ~90 s | import + graph + 2 modes × 10 categories + search index |
-| API, cached / cold | | isochrone 38 ms / 1.4 s, search ~200 ms | Caffeine cache; coordinates rounded to 5 decimals (~1 m) |
+| Full Budapest build | | ~3 min | import + graph + elevation + 3 modes × 10 categories + H3 + search index; then 2 transit heatmaps (~13 s) |
+| API, cached / cold | | isochrone 38 ms / 0.5-1.3 s, search ~200 ms | Caffeine cache; coordinates rounded to 5 decimals (~1 m) |
+| Street search to H3 cells (`reach_cells`, 10 min on foot) | 380-600 ms, mostly PostgreSQL JIT compiling the query (cost estimates of set-returning functions crossed `jit_above_cost`) | 14 ms with `jit=off` | isochrones, better nearby and common ground all run it; nearby went from 0.5-1.1 s to ~0.2 s cold |
+| Precompute, 3 modes × 10 categories | walk, bike, step-free one after another: 96 s | one connection per mode, in parallel: 49 s | pgRouting is single-threaded per query |
 | Transit (BKK: 5.8k stops, 40k weekday trips) | | timetable load 2.9 s per service day, then access ~0.8 s, isochrone ~1 s | RAPTOR over flat arrays; one seeded Dijkstra for every walk-on |
 | Common ground (2 places) | | walk + bike ~1.2 s, with a transit place ~4 s (cold) | one seeded search per place, H3 intersection |
 | GTFS import + opening hours | | 48 s + 0.1 s | 5.8M stop times via COPY; 5,174 of 5,326 `opening_hours` values parsed |
 | Transit heatmap (8.5k cells, weekday 08:00) | | 7-8.5 s | in-memory walking graph + RAPTOR per cell, in parallel; the walk on from each stop is a precomputed lookup |
 | Elevation (Copernicus DEM, 259k edges) | raw surface model: flat District V cycling +48 % over flat, more than hilly XII (+30 %) | ground model + 1 m hysteresis: 26 s; V +10 %, XII +19 % | roofs between narrow streets read as climbs until filtered out |
-| Heatmap tiles (z11, 1,400 hexagons) | travel times as tile properties: 157 kB (88 kB gzip) | shape + district only: 69 kB (18 kB gzip) | times load once per release from `/api/v1/cells` (290 kB zstd) |
+| Heatmap tiles (z11, 1,400 hexagons) | travel times as tile properties: 157 kB (88 kB gzip) | shape + district only: 69 kB (18 kB gzip) | times load once per release from `/api/v1/cells` |
+| Heatmap times (`/api/v1/cells`) | all modes in one response: 418 kB gzip for 3 modes, 680 kB for 5 | one mode per request: ~150 kB on first paint | the other modes load when chosen; the previous one stays painted meanwhile |
+| JavaScript | one 1.44 MB chunk (404 kB gzip), gzip per request | app 19 kB, MapLibre, React, vendor in their own chunks; Brotli at build time | a release that changes only the app keeps ~90 % cached; MapLibre 296 → 243 kB |
 | Re-weighting the map (persona, slider) | data-driven paint expression: every tile re-parsed | scores as feature state: 40-50 ms to a finished frame | no tile is read again |
 | Click on the map | camera padding shifted the map 196 px; clicks near the left edge also zoomed to the point; ~190 ms shader compile | map stays put (pans only if the panel covers the point); shaders compiled at start-up | measured with `web/scripts/profile.mjs` and `check-motion.mjs` |
 
 **Client-side scoring.** The browser loads every hexagon's raw travel times once per data release
-(`/api/v1/cells`: 8.5k hexagons × 2 modes × 10 categories), scores all of them in about a
+(`/api/v1/cells?mode=`: 8.5k hexagons × 10 categories), scores all of them in about a
 millisecond, and hands the scores to MapLibre as feature state. Moving a slider recolours the whole
 city without a request and without re-reading a tile. The vector tiles carry only the shape and
 the district. The same formula lives in SQL (`analytics.access_score`), Kotlin and TypeScript;
@@ -120,20 +125,21 @@ Decision records: [routing inside PostGIS](docs/adr/0001-routing-inside-postgis.
 [blue/green for code and data](docs/adr/0004-blue-green-code-and-data.md),
 [transit with RAPTOR and seeded search](docs/adr/0005-transit-raptor-and-seeded-search.md),
 [preview environments](docs/adr/0006-preview-environments.md),
-[transit heatmap, hills, holidays](docs/adr/0007-transit-heatmap-hills-holidays.md).
+[transit heatmap, hills, holidays](docs/adr/0007-transit-heatmap-hills-holidays.md),
+[step-free walking, evening transit, better nearby](docs/adr/0008-stepfree-evening-transit-nearby.md).
 
 ## Testing strategy
 
 | Layer | Tool | Count | What it proves |
 |---|---|---|---|
-| SQL functions | pgTAP | 139 | cost model (walk/bike, oneway, steps, hills), public holidays and holiday hours, scoring, search normalisation and ranking, isochrone geometry, seeded search, opening hours, GTFS calendars, common ground, input validation (SQLSTATE 22023) |
+| SQL functions | pgTAP | 153 | cost model (walk/step-free/bike, oneway, steps, hills), better nearby, public holidays and holiday hours, scoring, search normalisation and ranking, isochrone geometry, seeded search, opening hours, GTFS calendars, common ground, input validation (SQLSTATE 22023) |
 | OSM mapping, graph, precompute | pgTAP on the synthetic grid | (incl.) | Lua rules; ways split at junctions; snapping never targets an island; every vertex matches its hand-computed Manhattan time |
 | ETL | pytest + ruff | 47 | fixture generators (OSM + GTFS), opening_hours parser (incl. `PH`), elevation profiles, quality gates, score-drift gate |
-| API | JUnit 5 + Testcontainers | 56 | RAPTOR on hand-made timetables; real PostGIS image restored from the fixture dump: endpoints, tram timetable, transit heatmap, opening hours and holidays, common ground, error mapping, caching |
+| API | JUnit 5 + Testcontainers | 63 | RAPTOR on hand-made timetables; real PostGIS image restored from the fixture dump: endpoints, tram timetable, transit heatmaps (weekday, Sunday evening), step-free walking, better nearby, opening hours and holidays, common ground, error mapping, caching |
 | API contract | snapshot test | 1 | `openapi/openapi.json` matches the running API (`./gradlew test -PupdateSnapshots` to accept) |
 | Front-end types | CI drift check | | `src/api/schema.d.ts` regenerated from the contract must not differ |
-| Front end | Vitest | 50 | scoring vectors, per-hexagon scores (walk, bike, transit), URL state (incl. compared places), "when?" presets across time zones and DST, components |
-| End to end | Playwright + axe-core | 16 | production images (Caddy + API + Martin) on the fixture DB; desktop and mobile; no serious a11y violations |
+| Front end | Vitest | 50 | scoring vectors, per-hexagon scores, heat modes per "When?", URL state (incl. compared places), "when?" presets across time zones and DST, components |
+| End to end | Playwright + axe-core | 21 | production images (Caddy + API + Martin) on the fixture DB; desktop and mobile; no serious a11y violations |
 | Performance | k6 | | p95 budgets per endpoint; fixture in CI, real Budapest data on staging |
 | Release (data) | quality gates + drift gate | | graph health, coverage, and < 5 % of cells moving > 10 points vs production |
 | Supply chain | hadolint, gitleaks, Trivy, cosign | | Dockerfile lint, secret scan, critical CVEs, signed images with SBOM + provenance |
@@ -217,6 +223,7 @@ For front-end development run `python tasks.py api` and `npm run dev` in `web/` 
 - [x] **Phase 5, delivery:** signed multi-arch images, staging + approval-gated production, blue/green deploy, k6 budgets, weekly data release with an atomic database swap
 - [x] **Phase 6, extensions:** "where should we live?" (intersection of several people's reach, best spots inside), opening hours, transit routing (RAPTOR over BKK GTFS), preview environments per PR
 - [x] **Phase 7, depth:** public transport heatmap and ranking (RAPTOR per H3 cell), hill-aware cycling (Copernicus DEM), Hungarian public holidays in "When?", compare up to three places side by side
+- [x] **Phase 8, access:** step-free walking (pushchair, wheelchair: no steps), a Sunday-evening public transport heatmap, "better nearby" suggestions, share button, recent places, per-mode heatmap data, split and precompressed front-end bundles, JIT off for short searches, non-root images
 
 ## Data and licence
 

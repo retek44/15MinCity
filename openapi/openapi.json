@@ -26,7 +26,7 @@
             "type" : [ "string", "null" ]
           },
           "mode" : {
-            "enum" : [ "walk", "bike", "transit" ],
+            "enum" : [ "walk", "bike", "stepfree", "transit" ],
             "type" : "string"
           },
           "point" : {
@@ -63,7 +63,7 @@
             "type" : "integer"
           },
           "mode" : {
-            "enum" : [ "walk", "bike", "transit" ],
+            "enum" : [ "walk", "bike", "stepfree", "transit" ],
             "type" : "string"
           }
         },
@@ -120,16 +120,6 @@
       "CellTimes" : {
         "description" : "Travel times of every heatmap hexagon, column by column. walk[c][i] is the walking time in seconds from hexagon h3[i] to the nearest place of categories[c]; null means not reachable within 30 minutes. The map scores hexagons from these in the browser.",
         "properties" : {
-          "bike" : {
-            "items" : {
-              "items" : {
-                "format" : "int32",
-                "type" : "integer"
-              },
-              "type" : "array"
-            },
-            "type" : "array"
-          },
           "categories" : {
             "items" : {
               "type" : "string"
@@ -142,18 +132,12 @@
             },
             "type" : "array"
           },
-          "transit" : {
-            "description" : "Walking and public transport, leaving at 08:00 on a weekday; all null until computed",
-            "items" : {
-              "items" : {
-                "format" : "int32",
-                "type" : "integer"
-              },
-              "type" : "array"
-            },
-            "type" : "array"
+          "mode" : {
+            "enum" : [ "walk", "bike", "stepfree", "transit", "transit_evening" ],
+            "type" : "string"
           },
-          "walk" : {
+          "times" : {
+            "description" : "Per category (in `categories` order), seconds per hexagon (in `h3` order); null = over 30 minutes or not computed",
             "items" : {
               "items" : {
                 "format" : "int32",
@@ -164,7 +148,7 @@
             "type" : "array"
           }
         },
-        "required" : [ "bike", "categories", "h3", "transit", "walk" ],
+        "required" : [ "categories", "h3", "mode", "times" ],
         "type" : "object"
       },
       "CommonGroundResponse" : {
@@ -383,6 +367,67 @@
           }
         },
         "required" : [ "lat", "lon" ],
+        "type" : "object"
+      },
+      "NearbyPlace" : {
+        "properties" : {
+          "address" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/ReverseResult"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "h3" : {
+            "type" : "string"
+          },
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "score" : {
+            "description" : "Score of the hexagon for the requested profile, 0..100",
+            "format" : "double",
+            "type" : "number"
+          },
+          "seconds" : {
+            "description" : "Walking time from the point to the hexagon's centre, seconds",
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "required" : [ "h3", "lat", "lon", "score", "seconds" ],
+        "type" : "object"
+      },
+      "NearbyResponse" : {
+        "description" : "Hexagons within a short walk that score higher than the point's own hexagon",
+        "properties" : {
+          "hereScore" : {
+            "description" : "Score of the point's own hexagon for the requested profile, 0..100",
+            "format" : "double",
+            "type" : "number"
+          },
+          "minutes" : {
+            "description" : "Walking limit, minutes",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "mode" : {
+            "enum" : [ "walk", "bike", "stepfree", "transit", "transit_evening" ],
+            "type" : "string"
+          },
+          "places" : {
+            "items" : {
+              "$ref" : "#/components/schemas/NearbyPlace"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "hereScore", "minutes", "mode", "places" ],
         "type" : "object"
       },
       "PersonaDto" : {
@@ -639,7 +684,17 @@
     },
     "/api/v1/cells" : {
       "get" : {
+        "description" : "One mode per request, so the map loads only what it shows: walk, bike, stepfree, transit (weekday 08:00) or transit_evening (Sunday 20:00). Hexagons are in the same order for every mode.",
         "operationId" : "cells",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "mode",
+          "required" : false,
+          "schema" : {
+            "default" : "walk",
+            "type" : "string"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -652,7 +707,7 @@
             "description" : "OK"
           }
         },
-        "summary" : "Travel times of every heatmap hexagon (the inputs of the map's colours)",
+        "summary" : "Travel times of every heatmap hexagon for one mode (the inputs of the map's colours)",
         "tags" : [ "geo-controller" ]
       }
     },
@@ -670,7 +725,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Travel mode the spots are scored for (walk or bike)",
+          "description" : "Travel mode the spots are scored for (walk, bike, stepfree or transit)",
           "in" : "query",
           "name" : "mode",
           "required" : false,
@@ -861,6 +916,92 @@
           }
         },
         "summary" : "The data release currently served",
+        "tags" : [ "geo-controller" ]
+      }
+    },
+    "/api/v1/nearby" : {
+      "get" : {
+        "description" : "For a point and a profile, up to `limit` hexagons reachable within `minutes` on foot whose score (for `mode`: walk, bike, stepfree, transit or transit_evening) beats the point's hexagon, one per neighbourhood (resolution-8 parent), best first. Each comes with the nearest address.",
+        "operationId" : "nearby",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "lon",
+          "required" : true,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 180.0,
+            "minimum" : -180.0,
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "lat",
+          "required" : true,
+          "schema" : {
+            "format" : "double",
+            "maximum" : 90.0,
+            "minimum" : -90.0,
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "mode",
+          "required" : false,
+          "schema" : {
+            "default" : "walk",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "persona",
+          "required" : false,
+          "schema" : {
+            "default" : "balanced",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "weights",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "minutes",
+          "required" : false,
+          "schema" : {
+            "default" : 10,
+            "format" : "int32",
+            "maximum" : 30,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 3,
+            "format" : "int32",
+            "maximum" : 10,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NearbyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Better nearby: hexagons within a short walk that score higher than the point's own",
         "tags" : [ "geo-controller" ]
       }
     },

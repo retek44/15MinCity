@@ -23,8 +23,8 @@ import kotlin.math.roundToInt
 
 /**
  * Public transport heatmap: for every H3 cell, the time to the nearest place of each category when
- * leaving at 08:00 on a weekday, by walking and public transport (a direct walk counts too, so the
- * result is never worse than walking).
+ * leaving at a fixed [Slot] (08:00 on a weekday, 20:00 on a Sunday), by walking and public
+ * transport (a direct walk counts too, so the result is never worse than walking).
  *
  * Per cell: walk from the street vertex nearest the cell centre to the stops within 15 minutes
  * (an in-memory Dijkstra over the walking graph), ride with RAPTOR for up to 30 minutes, then walk
@@ -32,8 +32,9 @@ import kotlin.math.roundToInt
  * already precomputed (analytics.vertex_category_time), so it is a lookup. About 8,500 cells,
  * run in parallel; the timetable search is the expensive part.
  *
- * Writes analytics.h3_category_time rows with mode 'transit' and the `transit_*` keys of
- * analytics.h3_cell.times, which the heatmap (/api/v1/cells) and the district ranking read.
+ * Writes analytics.h3_category_time rows with the slot's mode ('transit', 'transit_evening') and
+ * the matching keys of analytics.h3_cell.times, which the heatmap (/api/v1/cells) and the district
+ * ranking read.
  */
 @Service
 class TransitHeatmap(
@@ -43,11 +44,24 @@ class TransitHeatmap(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    data class Result(val date: LocalDate, val cells: Int, val rows: Int, val millis: Long)
+    // Loaded once for all slots: the graph does not change while the precompute runs.
+    private val graph by lazy { WalkGraph.load(jdbc) }
 
-    fun compute(date: LocalDate = defaultDate(), departure: Int = DEPARTURE_S): Result {
+    /** A precomputed departure: [mode] is the heatmap mode it is stored and served as. */
+    enum class Slot(val mode: String, val day: DayOfWeek, val departure: Int) {
+        WEEKDAY_MORNING("transit", DayOfWeek.TUESDAY, 8 * 3600),
+        SUNDAY_EVENING("transit_evening", DayOfWeek.SUNDAY, 20 * 3600),
+        ;
+
+        /** The next such day on or after [from] (a Tuesday: never a Monday after a long weekend). */
+        fun date(from: LocalDate): LocalDate = from.with(TemporalAdjusters.nextOrSame(day))
+    }
+
+    data class Result(val slot: Slot, val date: LocalDate, val cells: Int, val rows: Int, val millis: Long)
+
+    fun compute(slot: Slot = Slot.WEEKDAY_MORNING, date: LocalDate = slot.date(defaultDate())): Result {
+        val departure = slot.departure
         val started = System.nanoTime()
-        val graph = WalkGraph.load(jdbc)
         val timetable = transit.timetable(date)
         val categories = jdbc.sql("SELECT DISTINCT category FROM analytics.poi_vertex ORDER BY category")
             .query(String::class.java).list().filterNotNull()
@@ -128,7 +142,7 @@ class TransitHeatmap(
         val writable = DriverManagerDataSource(pool.jdbcUrl, pool.username, pool.password)
         val write = JdbcClient.create(writable)
         val rows = TransactionTemplate(DataSourceTransactionManager(writable)).execute {
-            write.sql("DELETE FROM analytics.h3_category_time WHERE mode = 'transit'").update()
+            write.sql("DELETE FROM analytics.h3_category_time WHERE mode = ?").param(slot.mode).update()
             val batch = ArrayList<Row>()
             for ((i, cell) in cells.withIndex()) {
                 val times = results[i]!!
@@ -140,10 +154,11 @@ class TransitHeatmap(
                 write.sql(
                     """
                     INSERT INTO analytics.h3_category_time (h3, mode, category, seconds, vertices)
-                    SELECT x.h3::h3index, 'transit', x.category, x.seconds, 1
+                    SELECT x.h3::h3index, ?, x.category, x.seconds, 1
                     FROM unnest(?::text[], ?::text[], ?::float8[]) AS x (h3, category, seconds)
                     """.trimIndent(),
                 ).params(
+                    slot.mode,
                     chunk.joinToString(",", "{", "}") { it.h3 },
                     chunk.joinToString(",", "{", "}") { it.category },
                     chunk.joinToString(",", "{", "}") { it.seconds.toString() },
@@ -152,17 +167,19 @@ class TransitHeatmap(
             write.sql(
                 """
                 UPDATE analytics.h3_cell c
-                SET times = (SELECT coalesce(jsonb_object_agg(k, v), '{}'::jsonb)
-                             FROM jsonb_each(c.times) AS e (k, v) WHERE k NOT LIKE 'transit\_%')
-                         || coalesce((SELECT jsonb_object_agg('transit_' || t.category, round(t.seconds)::int)
+                SET times = (c.times - ?::text[])
+                         || coalesce((SELECT jsonb_object_agg(t.mode || '_' || t.category, round(t.seconds)::int)
                                       FROM analytics.h3_category_time t
-                                      WHERE t.h3 = c.h3 AND t.mode = 'transit'), '{}'::jsonb)
+                                      WHERE t.h3 = c.h3 AND t.mode = ?), '{}'::jsonb)
                 """.trimIndent(),
-            ).update()
+            ).params(categories.joinToString(",", "{", "}") { "${slot.mode}_$it" }, slot.mode).update()
             batch.size
         }!!
-        val result = Result(date, cells.size, rows, (System.nanoTime() - started) / 1_000_000)
-        log.info("transit heatmap for {} 08:00: {} cells, {} rows in {} ms", date, result.cells, result.rows, result.millis)
+        val result = Result(slot, date, cells.size, rows, (System.nanoTime() - started) / 1_000_000)
+        log.info(
+            "transit heatmap {} for {} {}: {} cells, {} rows in {} ms",
+            slot.mode, date, java.time.LocalTime.ofSecondOfDay(departure.toLong()), result.cells, result.rows, result.millis,
+        )
         return result
     }
 
@@ -171,13 +188,11 @@ class TransitHeatmap(
     private data class Row(val h3: String, val category: String, val seconds: Int)
 
     companion object {
-        const val DEPARTURE_S = 8 * 3600
         const val BUDGET_S = 1800
         private const val UNREACHABLE = Int.MAX_VALUE / 2
 
-        /** The next Tuesday: an ordinary weekday, never a Monday after a long weekend. */
-        fun defaultDate(today: LocalDate = TransitService.now().toLocalDate()): LocalDate =
-            today.with(TemporalAdjusters.next(DayOfWeek.TUESDAY))
+        /** Tomorrow: every slot's date is the next such day from here. */
+        fun defaultDate(today: LocalDate = TransitService.now().toLocalDate()): LocalDate = today.plusDays(1)
     }
 }
 
@@ -266,7 +281,10 @@ class WalkGraph private constructor(
 @ConditionalOnProperty("reach15.precompute", havingValue = "transit-heatmap")
 class TransitHeatmapRunner(private val heatmap: TransitHeatmap) : ApplicationRunner {
     override fun run(args: ApplicationArguments) {
-        val date = args.getOptionValues("reach15.transit-date")?.firstOrNull()?.let(LocalDate::parse)
-        heatmap.compute(date ?: TransitHeatmap.defaultDate())
+        // --reach15.transit-date: the first day to consider (tests pin it); each slot takes the
+        // next matching day from there.
+        val from = args.getOptionValues("reach15.transit-date")?.firstOrNull()?.let(LocalDate::parse)
+            ?: TransitHeatmap.defaultDate()
+        TransitHeatmap.Slot.entries.forEach { heatmap.compute(it, it.date(from)) }
     }
 }

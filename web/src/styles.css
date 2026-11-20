@@ -319,6 +319,16 @@ button {
   cursor: default;
 }
 
+.search-results .search-heading {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  cursor: default;
+  padding-bottom: 2px;
+}
+
 /* controls */
 .controls {
   display: flex;
@@ -352,6 +362,62 @@ button {
 .segmented button[aria-checked="true"] {
   background: var(--rail-ink);
   color: var(--rail);
+}
+
+/* step-free: a kind of walking, switched on under the mode */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  color: var(--rail-ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.switch input {
+  appearance: none;
+  margin: 0;
+  width: 34px;
+  height: 20px;
+  border: 2px solid var(--rail-ink);
+  border-radius: 2px;
+  background: transparent;
+  position: relative;
+  flex: none;
+  cursor: pointer;
+}
+
+.switch input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--rail-ink);
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.switch input:checked {
+  background: var(--rail-ink);
+}
+
+.switch input:checked::after {
+  background: var(--rail);
+  transform: translateX(14px);
+}
+
+.switch input:focus-visible {
+  outline: 2px solid var(--saffron);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch input::after {
+    transition: none;
+  }
 }
 
 .chips {
@@ -772,6 +838,17 @@ button {
   cursor: pointer;
 }
 
+.place-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.place-actions .place-compare {
+  margin: 0;
+}
+
 .place-compare {
   display: inline-flex;
   align-items: center;
@@ -1037,6 +1114,63 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin: 16px 0 6px;
+}
+
+/* place panel: better nearby */
+.nearby-caption {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.nearby-list li + li {
+  border-top: 1px solid var(--rule);
+}
+
+.nearby-place {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% + 12px);
+  margin: 0 -6px;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.nearby-place:hover {
+  background: var(--rule);
+}
+
+.nearby-place svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.nearby-score {
+  font-size: 26px;
+  line-height: 1;
+  min-width: 2ch;
+  color: var(--ultra);
+}
+
+.nearby-name {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.nearby-walk {
+  display: block;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .meters li + li {

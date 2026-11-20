@@ -62,11 +62,29 @@ def e2e() -> None:
     # Tuesday 2026-11-17: the GTFS fixture runs on weekdays, and tests pin their dates.
     transit_heatmap(E2E_ENV, "2026-11-17")
     compose("--profile", "app", "up", "-d", "--build", "--wait", "--force-recreate", "martin", "api", "web", env=E2E_ENV)
+    warm_up("http://localhost:8088")
     npx = "npx.cmd" if os.name == "nt" else "npx"
     subprocess.run(
         [npx, "playwright", "test"], cwd=ROOT / "web", check=True,
         env={**os.environ, "E2E_BASE_URL": "http://localhost:8088"},
     )
+
+
+def warm_up(base: str) -> None:
+    """One request per endpoint before the browsers start: a fresh JVM answers its first requests
+    several times slower, and eight test workers hitting it at once timed out on slow machines."""
+    import urllib.request
+
+    point = "lon=19.05&lat=47.5"
+    paths = [
+        "/api/v1/personas", "/api/v1/meta", "/api/v1/cells", f"/api/v1/access?{point}",
+        f"/api/v1/isochrone?{point}", f"/api/v1/nearby?{point}", "/api/v1/districts/ranking", "/tiles/catalog",
+    ]
+    for path in paths:
+        try:
+            urllib.request.urlopen(base + path, timeout=60).read()
+        except OSError as e:
+            print(f"warm-up {path}: {e}", flush=True)
 
 
 def psql(db: str, sql: str) -> None:

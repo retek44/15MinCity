@@ -1,10 +1,10 @@
 import type { ExpressionSpecification } from "maplibre-gl";
-import type { CategoryId, CellTimes, Mode, Weights } from "./api/client";
+import type { CategoryId, CellTimes, Weights } from "./api/client";
 
 /**
  * Accessibility scoring, mirrored from the API (Scoring.kt) and the database
  * (analytics.cell_scores). All three are tested against tests/fixtures/scoring-vectors.json.
- * The heatmap's travel times come from /api/v1/cells.
+ * The heatmap's travel times come from /api/v1/cells, one mode at a time.
  */
 export const MAX_SECONDS = 900;
 
@@ -25,9 +25,9 @@ export function score(times: Partial<Record<CategoryId, number | null>>, weights
  * columns: about a millisecond for Budapest's 8,500 hexagons. The map takes the scores as
  * feature state, so re-weighting repaints without re-reading a single tile.
  */
-export function cellScores(cells: CellTimes, mode: Mode, weights: Weights): Float32Array {
+export function cellScores(cells: CellTimes, weights: Weights): Float32Array {
   const out = new Float32Array(cells.h3.length);
-  const columns = cells[mode];
+  const columns = cells.times;
   const active = cells.categories
     .map((c, i) => ({ weight: weights[c as CategoryId] ?? 0, times: columns[i] ?? [] }))
     .filter((c) => c.weight > 0);

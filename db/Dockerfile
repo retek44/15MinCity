@@ -3,6 +3,8 @@
 # h3-pg (hexagon grid) and pgTAP (SQL unit tests).
 FROM postgres:17-bookworm
 
+# gosu only drops root in the entrypoint. This image starts as postgres, and the base image's
+# gosu build carries Go standard library CVEs (CVE-2025-68121) that the release gate rejects.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         postgresql-17-postgis-3 \
@@ -10,7 +12,8 @@ RUN apt-get update \
         postgresql-17-pgrouting \
         postgresql-17-h3 \
         postgresql-17-pgtap \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm /usr/local/bin/gosu
 
 # The entrypoint supports a non-root start: the data directory and socket directory already
 # belong to postgres (uid 999 in the official image), and a fresh volume copies that ownership.

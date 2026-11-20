@@ -2,7 +2,7 @@
 //
 //   python tasks.py pipeline && python tasks.py app      # http://localhost:8088
 //   node web/scripts/record-demo.mjs                       # writes docs/demo.webm
-//   ffmpeg -ss 0.75 -i docs/demo.webm -vf "fps=8,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer:bayer_scale=4" docs/demo.gif
+//   ffmpeg -ss 0.75 -i docs/demo.webm -vf "fps=7,scale=760:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=80:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" docs/demo.gif
 import { chromium } from "@playwright/test";
 import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -80,6 +80,28 @@ await page.locator('[data-testid="compare"][aria-busy="false"]').waitFor();
 await page.evaluate(() => window.__reach15.map.easeTo({ center: [19.02, 47.505], zoom: 11.6, duration: 650 }));
 await idle();
 await pause(3000);
+
+// 5b. Step-free in the Buda hills: steps close streets to a pushchair. "Better nearby" points to
+//     higher-scoring hexagons a short walk away.
+// Alma utca 8: 58 on foot, 21 step-free (family profile): the way down to the shops is steps.
+await search("alma utca 8", /Alma utca 8 1122/);
+await page.getByTestId("place-card").waitFor();
+await page.getByRole("radio", { name: /Walk/ }).click();
+await idle();
+await pause(1200);
+await page.getByRole("checkbox", { name: /Step-free/ }).check();
+await page.getByTestId("stepfree-note").waitFor();
+await idle();
+await pause(1800);
+const nearby = page.getByTestId("nearby");
+await nearby.waitFor();
+await nearby.scrollIntoViewIfNeeded();
+await pause(1800);
+await nearby.getByRole("button").first().click();
+await page.getByTestId("score").waitFor();
+await idle();
+await pause(2200);
+await page.getByRole("checkbox", { name: /Step-free/ }).uncheck();
 
 // 6. Two flats in view: pin both to compare, and ask where the household could live
 //    (an office in Óbuda by transit, a school in Újbuda by bike).

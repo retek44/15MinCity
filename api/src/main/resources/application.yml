@@ -8,11 +8,13 @@ spring:
     hikari:
       maximum-pool-size: 10
       read-only: true
+      # Also when the server keeps JIT on: compiling short searches cost more than running them.
+      connection-init-sql: SET jit = off
   mvc:
     problemdetails:
       enabled: true
   cache:
-    cache-names: isochrone,access,ranking,transitSeeds,cells
+    cache-names: isochrone,access,ranking,transitSeeds,cells,nearby
     caffeine:
       spec: maximumSize=5000,expireAfterWrite=1h
 

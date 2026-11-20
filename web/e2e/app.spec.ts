@@ -204,3 +204,60 @@ test("where should we live: two places outline their common ground and list spot
   await spot.click();
   await expect(page.getByTestId("place-card")).toBeVisible();
 });
+
+test("step-free walking: the school up the steps is out of reach", async ({ page }) => {
+  await page.goto(link(GRID.v1099));
+  await expect(page.getByTestId("place-card")).toBeVisible();
+  await expect.poll(() => minutesFor(page, "school")).toBe("3 min"); // two blocks, one of them steps
+  await page.getByRole("checkbox", { name: /Step-free/ }).check();
+  await expect(page).toHaveURL(/m=stepfree/);
+  await expect(page.getByRole("radio", { name: /Walk/ })).toHaveAttribute("aria-checked", "true");
+  await expect.poll(() => minutesFor(page, "school")).toBe("30+ min");
+  await expect(page.getByTestId("stepfree-note")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__reach15!.heat?.mode)).toBe("stepfree");
+  await expect(page.getByRole("figure")).toContainText("Step-free");
+});
+
+test("better nearby: a short walk leads to higher-scoring hexagons", async ({ page }) => {
+  // Vertex 1005, five blocks along the oneway row: its hexagon scores 21 for the balanced profile,
+  // two within a 10-minute walk score more.
+  await page.goto(link(GRID.v1005));
+  const nearby = page.getByTestId("nearby");
+  await expect(nearby).toContainText("within a 10-minute walk");
+  await expect(nearby.getByRole("listitem")).toHaveCount(2);
+  const scores = await nearby.locator(".nearby-score").allInnerTexts();
+  expect(scores.map(Number)).toEqual([...scores.map(Number)].sort((a, b) => b - a));
+  await nearby.getByRole("button").first().click();
+  await expect(page).not.toHaveURL(/p=47\.50000,19\.05664/);
+  await expect(page.getByTestId("place-card")).toBeVisible();
+});
+
+test("public transport on Sunday evening: the heatmap uses the evening departure", async ({ page }) => {
+  await page.goto(link(GRID.v1000, "&m=transit&t=su20"));
+  await expect(page.getByRole("figure")).toContainText("transit, Sunday 20:00");
+  await expect.poll(() => page.evaluate(() => window.__reach15!.heat?.mode)).toBe("transit_evening");
+});
+
+test("recent places: a picked address comes back when the search box is empty", async ({ page }) => {
+  await page.goto("/");
+  const search = page.getByRole("combobox");
+  await search.fill("andrassy 1");
+  await page.getByRole("option", { name: /^Andrássy út 1 / }).click();
+  await expect(page.getByTestId("place-title")).toHaveText("Andrássy út 1");
+  await search.fill("");
+  await search.focus();
+  await expect(page.getByRole("listbox", { name: "Recent places" })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("place-title")).toHaveText("Andrássy út 1");
+});
+
+test("share copies the link to the selected place", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(link(GRID.v1000, "&m=bike"));
+  await expect(page.getByTestId("place-card")).toBeVisible();
+  await page.getByTestId("share").click();
+  await expect(page.getByTestId("share")).toHaveText("Link copied");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain("p=47.50000,19.05000");
+  expect(copied).toContain("m=bike");
+});

@@ -1,6 +1,7 @@
 package hu.reach15.api.geo
 
 import hu.reach15.api.domain.Category
+import hu.reach15.api.domain.HeatMode
 import hu.reach15.api.domain.LonLat
 import hu.reach15.api.domain.Mode
 import hu.reach15.api.domain.PersonaProperties
@@ -141,7 +142,7 @@ class GeoController(
         @RequestParam(defaultValue = "walk") mode: String,
         @RequestParam(defaultValue = "balanced") persona: String,
         @RequestParam(required = false) weights: String?,
-    ): List<DistrictScore> = repo.districtRanking(resolveWeights(persona, weights), Mode.parse(mode))
+    ): List<DistrictScore> = repo.districtRanking(resolveWeights(persona, weights), HeatMode.parse(mode))
 
     @Operation(
         summary = "Where should we live? The area from which every place can be reached in its own limit",
@@ -152,7 +153,7 @@ class GeoController(
     @GetMapping("/common-ground")
     fun commonGround(
         @RequestParam @Size(min = 7, max = 400) places: String,
-        @Parameter(description = "Travel mode the spots are scored for (walk or bike)")
+        @Parameter(description = "Travel mode the spots are scored for (walk, bike, stepfree or transit)")
         @RequestParam(defaultValue = "walk") mode: String,
         @RequestParam(defaultValue = "balanced") persona: String,
         @RequestParam(required = false) weights: String?,
@@ -190,11 +191,34 @@ class GeoController(
         )
     }
 
-    @Operation(summary = "Travel times of every heatmap hexagon (the inputs of the map's colours)")
+    @Operation(
+        summary = "Travel times of every heatmap hexagon for one mode (the inputs of the map's colours)",
+        description = "One mode per request, so the map loads only what it shows: walk, bike, stepfree, " +
+            "transit (weekday 08:00) or transit_evening (Sunday 20:00). Hexagons are in the same order for every mode.",
+    )
     @GetMapping("/cells")
-    fun cells(): ResponseEntity<CellTimes> =
+    fun cells(@RequestParam(defaultValue = "walk") mode: String): ResponseEntity<CellTimes> =
         // Changes only with a data release; the browser may keep it for an hour.
-        ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic()).body(repo.cellTimes())
+        ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
+            .body(repo.cellTimes(HeatMode.parse(mode)))
+
+    @Operation(
+        summary = "Better nearby: hexagons within a short walk that score higher than the point's own",
+        description = "For a point and a profile, up to `limit` hexagons reachable within `minutes` on foot whose " +
+            "score (for `mode`: walk, bike, stepfree, transit or transit_evening) beats the point's hexagon, " +
+            "one per neighbourhood (resolution-8 parent), best first. Each comes with the nearest address.",
+    )
+    @GetMapping("/nearby")
+    fun nearby(
+        @RequestParam @DecimalMin("-180") @DecimalMax("180") lon: Double,
+        @RequestParam @DecimalMin("-90") @DecimalMax("90") lat: Double,
+        @RequestParam(defaultValue = "walk") mode: String,
+        @RequestParam(defaultValue = "balanced") persona: String,
+        @RequestParam(required = false) weights: String?,
+        @RequestParam(defaultValue = "10") @Min(1) @Max(30) minutes: Int,
+        @RequestParam(defaultValue = "3") @Min(1) @Max(10) limit: Int,
+    ): NearbyResponse =
+        repo.betterNearby(snap(lon), snap(lat), resolveWeights(persona, weights), HeatMode.parse(mode), minutes * 60, limit)
 
     @Operation(summary = "The data release currently served")
     @GetMapping("/meta")

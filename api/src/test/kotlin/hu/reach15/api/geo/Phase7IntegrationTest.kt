@@ -42,17 +42,19 @@ class Phase7IntegrationTest : IntegrationTest() {
 
     @Nested
     inner class TransitHeatmap {
-        private val cells by lazy { get("/api/v1/cells") }
+        private val cells = HashMap<String, JsonNode>()
+
+        private fun cells(mode: String) = cells.getOrPut(mode) { get("/api/v1/cells?mode=$mode") }
 
         private fun column(mode: String, category: String): List<JsonNode> {
-            val c = cells["categories"].items().map { it.asString() }.indexOf(category)
-            return cells[mode][c].items().toList()
+            val c = cells(mode)["categories"].items().map { it.asString() }.indexOf(category)
+            return cells(mode)["times"][c].items().toList()
         }
 
         private fun cellOf(vertex: Long): Int {
             val h3 = jdbc.sql("SELECT h3_latlng_to_cell(geom, 9)::text FROM routing.vertices WHERE id = ?")
                 .param(vertex).query(String::class.java).single()
-            return cells["h3"].items().map { it.asString() }.indexOf(h3)
+            return cells("walk")["h3"].items().map { it.asString() }.indexOf(h3)
         }
 
         @Test
@@ -67,7 +69,7 @@ class Phase7IntegrationTest : IntegrationTest() {
 
         @Test
         fun `public transport is never slower than walking`() {
-            for (category in cells["categories"].items().map { it.asString() }) {
+            for (category in cells("walk")["categories"].items().map { it.asString() }) {
                 val walk = column("walk", category)
                 val transit = column("transit", category)
                 walk.indices.filter { !walk[it].isNull }.forEach {

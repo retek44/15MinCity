@@ -39,20 +39,29 @@ class GeoApiIntegrationTest : IntegrationTest() {
         }
 
         @Test
-        fun `cells carry every hexagon's travel times column by column`() {
-            val cells = get("/api/v1/cells")
-            val categories = cells["categories"].items().map { it.asString() }
-            val hexagons = cells["h3"].items().map { it.asString() }
+        fun `cells carry every hexagon's travel times column by column, one mode per request`() {
+            val walk = get("/api/v1/cells")
+            val categories = walk["categories"].items().map { it.asString() }
+            val hexagons = walk["h3"].items().map { it.asString() }
             assertEquals(10, categories.size)
             assertTrue(hexagons.isNotEmpty())
             assertEquals(hexagons.size, hexagons.toSet().size)
-            for (mode in listOf("walk", "bike", "transit")) {
-                assertEquals(categories.size, cells[mode].size())
-                cells[mode].items().forEach { column -> assertEquals(hexagons.size, column.size()) }
+            assertEquals("walk", walk["mode"].asString())
+            for (mode in listOf("walk", "bike", "stepfree", "transit", "transit_evening")) {
+                val cells = get("/api/v1/cells?mode=$mode")
+                assertEquals(mode, cells["mode"].asString())
+                assertEquals(hexagons, cells["h3"].items().map { it.asString() }, "same hexagon order for $mode")
+                assertEquals(categories.size, cells["times"].size())
+                cells["times"].items().forEach { column -> assertEquals(hexagons.size, column.size()) }
             }
             // The grid fixture's hexagons reach its Corner Market on foot.
-            val grocery = cells["walk"][categories.indexOf("grocery")].items().toList()
+            val grocery = walk["times"][categories.indexOf("grocery")].items().toList()
             assertTrue(grocery.any { !it.isNull && it.asInt() in 0..1800 })
+        }
+
+        @Test
+        fun `cells reject an unknown mode`() {
+            assertEquals(HttpStatus.BAD_REQUEST, status("/api/v1/cells?mode=car").first)
         }
     }
 

@@ -43,7 +43,7 @@ abstract class IntegrationTest {
         // The fixture dump has no public transport heatmap (the ETL does not compute it): compute
         // it once per container, for Tuesday 2026-11-17, as the data release does after the build.
         if (!heatmapReady) {
-            transitHeatmap.compute(java.time.LocalDate.parse("2026-11-17"))
+            TransitHeatmap.Slot.entries.forEach { transitHeatmap.compute(it, it.date(java.time.LocalDate.parse("2026-11-17"))) }
             heatmapReady = true
         }
     }

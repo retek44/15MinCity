@@ -1,6 +1,6 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { type Anchor, api, type CategoryId, type DistrictScore, type Mode, type Persona, type Weights } from "./api/client";
+import { type Anchor, api, type CategoryId, type DistrictScore, heatModeOf, type Mode, type Persona, type Weights } from "./api/client";
 import { CommonGroundPanel, LETTERS } from "./components/CommonGroundPanel";
 import { type Compared, ComparePanel, MAX_COMPARED, type Pinned } from "./components/ComparePanel";
 import { WhenPicker } from "./components/WhenPicker";
@@ -17,6 +17,8 @@ import { type DistrictFocus, type MapMarker, MapView, type PoiMarker } from "./m
 import { readUrlState, writeUrlState } from "./urlState";
 
 const MINUTES = [5, 10, 15];
+/** "Better nearby" looks this far on foot: a move within the same neighbourhood. */
+const NEARBY_MINUTES = 10;
 /** One empty list, so the map does not see "new" places on every render (and re-upload them). */
 const NO_POIS: PoiMarker[] = [];
 const BALANCED: Weights = {
@@ -83,8 +85,19 @@ export function App() {
 
   const personas = useQuery({ queryKey: ["personas"], queryFn: api.personas, staleTime: Infinity });
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta, staleTime: Infinity });
-  /** Travel times of every hexagon: fetched once, re-scored in the browser on every change. */
-  const cells = useQuery({ queryKey: ["cells"], queryFn: api.cells, staleTime: Infinity });
+  /** Public transport's heatmap follows "When?" to the nearest precomputed departure. */
+  const heatMode = heatModeOf(mode, when);
+  /**
+   * Travel times of every hexagon for the mode shown: fetched once per mode (only what the map
+   * shows: a third of the old all-modes payload on first paint), re-scored in the browser on every
+   * change. The previous mode stays painted while the next one loads.
+   */
+  const cells = useQuery({
+    queryKey: ["cells", heatMode],
+    queryFn: () => api.cells(heatMode),
+    staleTime: Infinity,
+    placeholderData: (previous) => previous,
+  });
   const basemap = useQuery({
     queryKey: ["catalog"],
     queryFn: async () => {
@@ -124,9 +137,17 @@ export function App() {
     retry: false,
   });
   const ranking = useQuery({
-    queryKey: ["ranking", mode, weights],
-    queryFn: () => api.ranking(mode, weights),
+    queryKey: ["ranking", heatMode, weights],
+    queryFn: () => api.ranking(heatMode, weights),
     placeholderData: (previous) => previous,
+  });
+  /** Better nearby: higher-scoring hexagons within a 10-minute walk of the selected point. */
+  const nearby = useQuery({
+    queryKey: ["nearby", point?.lon, point?.lat, heatMode, weights],
+    queryFn: () => api.nearby(point!.lon, point!.lat, heatMode, weights, NEARBY_MINUTES),
+    enabled: Boolean(point) && !access.isError,
+    retry: false,
+    staleTime: Infinity,
   });
   const anchorKey = anchors.map(({ lon, lat, mode: m, minutes }) => [lon, lat, m, minutes]);
   const common = useQuery({
@@ -318,7 +339,6 @@ export function App() {
             of loading a plain one and swapping it, which reloaded every tile on start-up. */}
         {basemap.isFetched ? (
         <MapView
-          mode={mode}
           weights={heatWeights}
           cells={cells.data}
           dark={dark}
@@ -341,9 +361,11 @@ export function App() {
           title={
             focusCategory
               ? t.legendFocus(t.categories[focusCategory], t.modeName[mode])
-              : mode === "transit"
+              : heatMode === "transit"
                 ? t.legendTransit(profileName)
-                : t.legendTitle(modeName, profileName)
+                : heatMode === "transit_evening"
+                  ? t.legendTransitEvening(profileName)
+                  : t.legendTitle(modeName, profileName)
           }
           dark={dark}
           low={t.legendLow}
@@ -364,6 +386,8 @@ export function App() {
             onClear={clear}
             compare={pinned ? "added" : compare.length >= MAX_COMPARED ? "full" : "add"}
             onCompare={() => point && setCompare([...compare, { lon: point.lon, lat: point.lat }])}
+            nearby={access.data && !access.isPlaceholderData ? nearby.data : undefined}
+            onNearby={(p) => setPoint({ lon: p.lon, lat: p.lat, fly: true })}
           />
         )}
       </main>

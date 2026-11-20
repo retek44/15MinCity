@@ -9,6 +9,8 @@ export const GRID = {
   v1005: { lat: 47.5, lon: 19.0566363 },
   v1022: { lat: 47.5017989, lon: 19.0526545 },
   v1044: { lat: 47.5035978, lon: 19.055309 },
+  /** Far corner: 18 blocks from the market; the school (3101) is up the steps north of it. */
+  v1099: { lat: 47.508095, lon: 19.0619453 },
 };
 
 export const link = (p: { lat: number; lon: number }, extra = "") => `/#p=${p.lat},${p.lon}${extra}`;

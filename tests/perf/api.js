@@ -36,6 +36,8 @@ export const options = {
     "http_req_duration{endpoint:tile}": ["p(95)<400"],
     "http_req_duration{endpoint:transit}": ["p(95)<2000"],
     "http_req_duration{endpoint:common}": ["p(95)<3000"],
+    "http_req_duration{endpoint:nearby}": ["p(95)<1000"],
+    "http_req_duration{endpoint:cells}": ["p(95)<500"],
   },
 };
 
@@ -54,7 +56,8 @@ const QUERIES = ["andrassy", "grid", "pharm", "deak ter", "nyugati", "vaci ut 1"
 export default function () {
   const lon = rand(area.west, area.east);
   const lat = rand(area.south, area.north);
-  const mode = Math.random() < 0.7 ? "walk" : "bike";
+  const r = Math.random();
+  const mode = r < 0.6 ? "walk" : r < 0.9 ? "bike" : "stepfree";
 
   group("map browsing", () => {
     const r = http.get(`${BASE}/tiles/h3/${tile(lon, lat, 14)}`, { tags: { endpoint: "tile" } });
@@ -91,6 +94,19 @@ export default function () {
     const places = `${lon},${lat},walk,15;${lon2},${lat2},bike,15`;
     const r = http.get(`${BASE}/api/v1/common-ground?places=${places}`, { tags: { endpoint: "common" } });
     check(r, { "common ground 200": (res) => res.status === 200 });
+  }
+
+  if (Math.random() < 0.5) {
+    const r = http.get(`${BASE}/api/v1/nearby?lon=${lon}&lat=${lat}&mode=${mode}&persona=family`, {
+      tags: { endpoint: "nearby" },
+    });
+    // 422: the random point is off the street network (water, fields); a valid answer, not a failure.
+    check(r, { "nearby 200/422": (res) => res.status === 200 || res.status === 422 });
+  }
+
+  if (Math.random() < 0.1) {
+    const r = http.get(`${BASE}/api/v1/cells?mode=${mode}`, { tags: { endpoint: "cells" } });
+    check(r, { "cells 200": (res) => res.status === 200 });
   }
 
   if (Math.random() < 0.2) {

@@ -17,7 +17,7 @@ export interface UrlState {
   compare?: Pinned[];
 }
 
-const MODES: Mode[] = ["walk", "bike", "transit"];
+const MODES: Mode[] = ["walk", "bike", "stepfree", "transit"];
 const isMode = (value: string | null | undefined): value is Mode => MODES.includes(value as Mode);
 
 function latLon(lat: number | undefined, lon: number | undefined) {

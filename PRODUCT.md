@@ -42,18 +42,24 @@ own priorities, across the whole city at once. Data is open (OpenStreetMap) and 
 ## Capabilities and Constraints
 
 - Ten categories: grocery, pharmacy, doctor, school, kindergarten, park, transit, food, gym, library.
-- Three modes: walk, bike (hill-aware: Copernicus elevation, slower uphill) and public transport
-  (BKK timetable, RAPTOR: per place at any time; the heatmap and ranking for a weekday 08:00
-  departure). Five personas: balanced, family, student, senior, active; plus custom weights.
+- Four modes: walk, step-free walk (no steps or ways mapped as not wheelchair-accessible: for a
+  pushchair or a wheelchair; a switch under "Walk"), bike (hill-aware: Copernicus elevation,
+  slower uphill) and public transport (BKK timetable, RAPTOR: per place at any time; the heatmap
+  and ranking for a weekday 08:00 departure, or Sunday 20:00 when "When?" says so). Five
+  personas: balanced, family, student, senior, active; plus custom weights.
 - Score 0–100: per category `clamp(1 - seconds / 900, 0, 1)`, weighted mean. 15 minutes = 0 for that category.
 - Heatmap: H3 resolution-9 hexagons; their raw times per category load once per release and
-  are scored client-side (no request and no tile re-read when weights change).
+  mode (when the mode is first shown) and are scored client-side (no request and no tile re-read when weights change).
 - District ranking (23 districts), mean cell score with p25/p75.
 - "When?": a local time filters places by OSM opening hours (unknown hours count as open and are
   labelled) and sets the public transport departure. Hungarian public holidays apply mapped
   holiday hours (`PH`) and are named in the place panel.
 - "Where should we live?": up to four places with their own mode and limit; the common area and the
   best-scoring spots inside.
+- Better nearby: for a selected place, up to three hexagons within a 10-minute walk that score
+  higher for the visitor's profile, spread out, each with its nearest address.
+- Share: the place panel shares the link (system share sheet on phones, clipboard elsewhere);
+  the search box offers the last five places picked (stored in the browser only).
 - Compare places: up to three pinned addresses side by side (score and minutes per category, best
   marked), shared in the link (`c=`).
 - Coverage: Budapest only. No real-time transit, no housing prices or listings.
