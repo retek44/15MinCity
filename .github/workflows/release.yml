@@ -77,7 +77,8 @@ jobs:
           sbom: true
           provenance: mode=max
           cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          # A failed cache upload (GitHub cache eviction, "error writing layer blob: not_found") must not fail an image that built and pushed.
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }},ignore-error=true
       - name: Vulnerability gate (critical, fixable)
         # Pinned by commit (v0.36.0), like ci.yml: the Trivy release v0.33.1 installs is deleted.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25

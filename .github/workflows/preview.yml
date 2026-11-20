@@ -58,7 +58,8 @@ jobs:
             org.opencontainers.image.title=reach15-${{ matrix.image }}
             org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          # A failed cache upload (GitHub cache eviction, "error writing layer blob: not_found") must not fail an image that built and pushed.
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }},ignore-error=true
 
   deploy:
     name: Deploy · preview
